@@ -1,0 +1,375 @@
+import { and, eq, gte, lte, sql, desc } from "drizzle-orm";
+import {
+  db,
+  analyticsEvents,
+  businessAnalyticsDaily,
+  campaignAnalyticsDaily,
+} from "@workspace/db";
+
+import type {
+  InternalEventName,
+  BusinessEventName,
+  LeadSource,
+} from "../../web/src/lib/analytics/types";
+
+function todayString(date = new Date()) {
+  return date.toISOString().slice(0, 10);
+}
+
+export async function trackInternalEvent(params: {
+  userId?: string | null;
+  businessProfileId?: string | null;
+  eventName: InternalEventName;
+  source?: string;
+  properties?: Record<string, unknown>;
+}) {
+  await db.insert(analyticsEvents).values({
+    userId: params.userId ?? null,
+    businessProfileId: params.businessProfileId ?? null,
+    eventName: params.eventName,
+    eventType: "internal",
+    source: params.source ?? "app",
+    properties: params.properties ?? {},
+  });
+}
+
+export async function trackBusinessEvent(params: {
+  userId?: string | null;
+  businessProfileId: string;
+  campaignId?: string | null;
+  eventName: BusinessEventName;
+  source?: LeadSource;
+  properties?: Record<string, unknown>;
+  occurredOn?: string;
+}) {
+  const day = params.occurredOn ?? todayString();
+
+  await db.insert(analyticsEvents).values({
+    userId: params.userId ?? null,
+    businessProfileId: params.businessProfileId,
+    eventName: params.eventName,
+    eventType: "business",
+    source: params.source ?? "app",
+    properties: params.properties ?? {},
+  });
+
+  await upsertBusinessDaily(params.businessProfileId, day, params.eventName, params.source);
+  if (params.campaignId) {
+    await upsertCampaignDaily(
+      params.campaignId,
+      params.businessProfileId,
+      day,
+      params.eventName,
+      params.source
+    );
+  }
+}
+
+async function ensureBusinessDailyRow(businessProfileId: string, day: string) {
+  await db
+    .insert(businessAnalyticsDaily)
+    .values({
+      businessProfileId,
+      day,
+    })
+    .onConflictDoNothing();
+}
+
+async function ensureCampaignDailyRow(
+  campaignId: string,
+  businessProfileId: string,
+  day: string
+) {
+  await db
+    .insert(campaignAnalyticsDaily)
+    .values({
+      campaignId,
+      businessProfileId,
+      day,
+    })
+    .onConflictDoNothing();
+}
+
+async function upsertBusinessDaily(
+  businessProfileId: string,
+  day: string,
+  eventName: BusinessEventName,
+  source?: LeadSource
+) {
+  await ensureBusinessDailyRow(businessProfileId, day);
+
+  const updates: Record<string, unknown> = {
+    updatedAt: new Date(),
+  };
+
+  if (eventName === "landing_page_viewed") {
+    updates.landingPageViews = sql`${businessAnalyticsDaily.landingPageViews} + 1`;
+  }
+
+  if (eventName === "form_started") {
+    updates.formStarts = sql`${businessAnalyticsDaily.formStarts} + 1`;
+  }
+
+  if (eventName === "form_submitted") {
+    updates.formSubmissions = sql`${businessAnalyticsDaily.formSubmissions} + 1`;
+  }
+
+  if (eventName === "lead_captured") {
+    updates.leadsCaptured = sql`${businessAnalyticsDaily.leadsCaptured} + 1`;
+
+    if (source === "facebook") {
+      updates.facebookLeads = sql`${businessAnalyticsDaily.facebookLeads} + 1`;
+    } else if (source === "instagram") {
+      updates.instagramLeads = sql`${businessAnalyticsDaily.instagramLeads} + 1`;
+    } else if (source === "google") {
+      updates.googleLeads = sql`${businessAnalyticsDaily.googleLeads} + 1`;
+    } else if (source === "email") {
+      updates.emailLeads = sql`${businessAnalyticsDaily.emailLeads} + 1`;
+    } else if (source === "direct") {
+      updates.directLeads = sql`${businessAnalyticsDaily.directLeads} + 1`;
+    } else if (source === "referral") {
+      updates.referralLeads = sql`${businessAnalyticsDaily.referralLeads} + 1`;
+    }
+  }
+
+  if (eventName === "email_sent") {
+    updates.emailsSent = sql`${businessAnalyticsDaily.emailsSent} + 1`;
+  }
+
+  if (eventName === "email_opened") {
+    updates.emailOpens = sql`${businessAnalyticsDaily.emailOpens} + 1`;
+  }
+
+  if (eventName === "email_clicked") {
+    updates.emailClicks = sql`${businessAnalyticsDaily.emailClicks} + 1`;
+  }
+
+  if (eventName === "unsubscribe_clicked") {
+    updates.unsubscribes = sql`${businessAnalyticsDaily.unsubscribes} + 1`;
+  }
+
+  await db
+    .update(businessAnalyticsDaily)
+    .set(updates)
+    .where(
+      and(
+        eq(businessAnalyticsDaily.businessProfileId, businessProfileId),
+        eq(businessAnalyticsDaily.day, day)
+      )
+    );
+}
+
+async function upsertCampaignDaily(
+  campaignId: string,
+  businessProfileId: string,
+  day: string,
+  eventName: BusinessEventName,
+  source?: LeadSource
+) {
+  await ensureCampaignDailyRow(campaignId, businessProfileId, day);
+
+  const updates: Record<string, unknown> = {
+    updatedAt: new Date(),
+  };
+
+  if (eventName === "landing_page_viewed") {
+    updates.visits = sql`${campaignAnalyticsDaily.visits} + 1`;
+  }
+
+  if (eventName === "lead_captured") {
+    updates.leads = sql`${campaignAnalyticsDaily.leads} + 1`;
+
+    if (source === "facebook") {
+      updates.sourceFacebook = sql`${campaignAnalyticsDaily.sourceFacebook} + 1`;
+    } else if (source === "instagram") {
+      updates.sourceInstagram = sql`${campaignAnalyticsDaily.sourceInstagram} + 1`;
+    } else if (source === "google") {
+      updates.sourceGoogle = sql`${campaignAnalyticsDaily.sourceGoogle} + 1`;
+    } else if (source === "email") {
+      updates.sourceEmail = sql`${campaignAnalyticsDaily.sourceEmail} + 1`;
+    } else if (source === "direct") {
+      updates.sourceDirect = sql`${campaignAnalyticsDaily.sourceDirect} + 1`;
+    } else if (source === "referral") {
+      updates.sourceReferral = sql`${campaignAnalyticsDaily.sourceReferral} + 1`;
+    }
+  }
+
+  if (eventName === "email_sent") {
+    updates.emailSent = sql`${campaignAnalyticsDaily.emailSent} + 1`;
+  }
+
+  if (eventName === "email_opened") {
+    updates.emailOpened = sql`${campaignAnalyticsDaily.emailOpened} + 1`;
+  }
+
+  if (eventName === "email_clicked") {
+    updates.emailClicked = sql`${campaignAnalyticsDaily.emailClicked} + 1`;
+  }
+
+  await db
+    .update(campaignAnalyticsDaily)
+    .set(updates)
+    .where(
+      and(
+        eq(campaignAnalyticsDaily.campaignId, campaignId),
+        eq(campaignAnalyticsDaily.day, day)
+      )
+    );
+}
+
+export async function getBusinessAnalyticsOverview(params: {
+  businessProfileId: string;
+  from: string;
+  to: string;
+}) {
+  const rows = await db
+    .select({
+      day: businessAnalyticsDaily.day,
+      landingPageViews: businessAnalyticsDaily.landingPageViews,
+      formStarts: businessAnalyticsDaily.formStarts,
+      formSubmissions: businessAnalyticsDaily.formSubmissions,
+      leadsCaptured: businessAnalyticsDaily.leadsCaptured,
+      emailsSent: businessAnalyticsDaily.emailsSent,
+      emailOpens: businessAnalyticsDaily.emailOpens,
+      emailClicks: businessAnalyticsDaily.emailClicks,
+      unsubscribes: businessAnalyticsDaily.unsubscribes,
+      facebookLeads: businessAnalyticsDaily.facebookLeads,
+      instagramLeads: businessAnalyticsDaily.instagramLeads,
+      googleLeads: businessAnalyticsDaily.googleLeads,
+      emailLeads: businessAnalyticsDaily.emailLeads,
+      directLeads: businessAnalyticsDaily.directLeads,
+      referralLeads: businessAnalyticsDaily.referralLeads,
+    })
+    .from(businessAnalyticsDaily)
+    .where(
+      and(
+        eq(businessAnalyticsDaily.businessProfileId, params.businessProfileId),
+        gte(businessAnalyticsDaily.day, params.from),
+        lte(businessAnalyticsDaily.day, params.to)
+      )
+    )
+    .orderBy(businessAnalyticsDaily.day);
+
+  const totals = rows.reduce(
+    (acc, row) => {
+      acc.landingPageViews += row.landingPageViews;
+      acc.formStarts += row.formStarts;
+      acc.formSubmissions += row.formSubmissions;
+      acc.leadsCaptured += row.leadsCaptured;
+      acc.emailsSent += row.emailsSent;
+      acc.emailOpens += row.emailOpens;
+      acc.emailClicks += row.emailClicks;
+      acc.unsubscribes += row.unsubscribes;
+      acc.facebookLeads += row.facebookLeads;
+      acc.instagramLeads += row.instagramLeads;
+      acc.googleLeads += row.googleLeads;
+      acc.emailLeads += row.emailLeads;
+      acc.directLeads += row.directLeads;
+      acc.referralLeads += row.referralLeads;
+      return acc;
+    },
+    {
+      landingPageViews: 0,
+      formStarts: 0,
+      formSubmissions: 0,
+      leadsCaptured: 0,
+      emailsSent: 0,
+      emailOpens: 0,
+      emailClicks: 0,
+      unsubscribes: 0,
+      facebookLeads: 0,
+      instagramLeads: 0,
+      googleLeads: 0,
+      emailLeads: 0,
+      directLeads: 0,
+      referralLeads: 0,
+    }
+  );
+
+  const conversionRate =
+    totals.landingPageViews > 0
+      ? Number(((totals.leadsCaptured / totals.landingPageViews) * 100).toFixed(1))
+      : 0;
+
+  const emailOpenRate =
+    totals.emailsSent > 0
+      ? Number(((totals.emailOpens / totals.emailsSent) * 100).toFixed(1))
+      : 0;
+
+  const emailClickRate =
+    totals.emailsSent > 0
+      ? Number(((totals.emailClicks / totals.emailsSent) * 100).toFixed(1))
+      : 0;
+
+  return {
+    totals: {
+      ...totals,
+      conversionRate,
+      emailOpenRate,
+      emailClickRate,
+    },
+    timeseries: rows,
+  };
+}
+
+export async function getCampaignAnalytics(params: {
+  businessProfileId: string;
+  from: string;
+  to: string;
+}) {
+  const rows = await db
+    .select({
+      campaignId: campaignAnalyticsDaily.campaignId,
+      day: campaignAnalyticsDaily.day,
+      visits: campaignAnalyticsDaily.visits,
+      leads: campaignAnalyticsDaily.leads,
+      emailSent: campaignAnalyticsDaily.emailSent,
+      emailOpened: campaignAnalyticsDaily.emailOpened,
+      emailClicked: campaignAnalyticsDaily.emailClicked,
+    })
+    .from(campaignAnalyticsDaily)
+    .where(
+      and(
+        eq(campaignAnalyticsDaily.businessProfileId, params.businessProfileId),
+        gte(campaignAnalyticsDaily.day, params.from),
+        lte(campaignAnalyticsDaily.day, params.to)
+      )
+    )
+    .orderBy(desc(campaignAnalyticsDaily.day));
+
+  return rows;
+}
+
+export async function getInternalAnalyticsSummary(params: {
+  from: Date;
+  to: Date;
+}) {
+  const rows = await db
+    .select({
+      eventName: analyticsEvents.eventName,
+      createdAt: analyticsEvents.createdAt,
+    })
+    .from(analyticsEvents)
+    .where(
+      and(
+        eq(analyticsEvents.eventType, "internal"),
+        gte(analyticsEvents.createdAt, params.from),
+        lte(analyticsEvents.createdAt, params.to)
+      )
+    );
+
+  const counts = rows.reduce<Record<string, number>>((acc, row) => {
+    acc[row.eventName] = (acc[row.eventName] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  return {
+    totalSignups: counts.signup_completed ?? 0,
+    checkoutStarts: counts.checkout_started ?? 0,
+    activeSubscriptions: counts.subscription_active ?? 0,
+    campaignGenerations: counts.campaign_generated ?? 0,
+    pricingViews: counts.pricing_viewed ?? 0,
+    upgradeClicks: counts.upgrade_clicked ?? 0,
+    rawCounts: counts,
+  };
+}

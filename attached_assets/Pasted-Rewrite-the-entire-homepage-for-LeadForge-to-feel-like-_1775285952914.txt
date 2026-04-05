@@ -1,0 +1,133 @@
+Rewrite the entire homepage for LeadForge to feel like a premium SaaS product focused on helping local businesses generate leads and grow revenue.
+
+HERO SECTION:
+
+Headline:
+Forge better ads. Capture more leads. Grow your business.
+
+Subheadline:
+LeadForge helps local service businesses generate ads, build high-converting landing pages, and capture real customer leads in minutes.
+
+Primary CTA:
+Start Free
+
+Secondary CTA:
+See How It Works
+
+Add a clean hero layout with strong spacing, navy gradient background, and a professional SaaS look.
+
+---
+
+RESULTS SECTION:
+
+Title:
+Built to help you get more customers
+
+Create 4 premium cards:
+
+1. Generate high-converting ads in seconds  
+2. Turn clicks into real leads with landing pages  
+3. Capture and manage leads in one place  
+4. Follow up faster and close more jobs  
+
+---
+
+HOW IT WORKS:
+
+Title:
+Simple. Fast. Built for real results.
+
+Steps:
+
+1. Enter your business details  
+2. Generate ads and offers  
+3. Launch your campaign  
+4. Capture and manage leads  
+
+Use clean icons and horizontal layout.
+
+---
+
+EXAMPLE CAMPAIGN SECTION:
+
+Title:
+See what LeadForge creates for you
+
+Create a clean card showing:
+
+Example: Painting Company Campaign
+
+Ad Headline:
+“Freshen Your Home This Spring – Free Estimates Available”
+
+Ad Text:
+“Professional interior and exterior painting with clean finishes and reliable service. Book your free estimate today.”
+
+CTA:
+Book Your Free Estimate
+
+Landing Page Headline:
+“Get a Professional Paint Job Without the Stress”
+
+Form CTA:
+Request Your Free Quote Today
+
+Make this visually clean and premium.
+
+---
+
+FEATURES SECTION:
+
+Title:
+Everything you need to generate leads
+
+Cards:
+
+- AI-powered ad generation  
+- Multi-platform campaign creation  
+- Landing page generator  
+- Lead capture forms  
+- Simple lead management  
+- Campaign tracking  
+
+---
+
+TESTIMONIALS:
+
+Add 3 realistic testimonials from local business owners:
+
+Example:
+“LeadForge helped me get more estimates in 2 weeks than I did all last month.”  
+– Painting Contractor
+
+---
+
+PRICING PREVIEW:
+
+Show 3 tiers:
+Free / Pro / Agency
+
+Keep clean, minimal, and professional.
+
+---
+
+FINAL CTA:
+
+Headline:
+Start generating more leads today
+
+Subheadline:
+Join local businesses using LeadForge to grow faster.
+
+Buttons:
+Start Free
+
+---
+
+FOOTER:
+
+Simple professional footer with:
+- logo
+- links
+- contact
+- terms

@@ -1,0 +1,178 @@
+import express from "express";
+import { stripe } from "../lib/stripe.js";
+import { prisma } from "../lib/prisma.js";
+import { addCredits, resetMonthlyCredits } from "../services/credits.js";
+import { TOPUP_CREDITS } from "../config/plans.js";
+
+const router = express.Router();
+
+function mapStripeStatus(status) {
+  switch (status) {
+    case "active":
+      return "ACTIVE";
+    case "canceled":
+      return "CANCELED";
+    case "past_due":
+      return "PAST_DUE";
+    case "incomplete":
+      return "INCOMPLETE";
+    case "unpaid":
+      return "UNPAID";
+    default:
+      return "NONE";
+  }
+}
+
+router.post(
+  "/stripe",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    const signature = req.headers["stripe-signature"];
+
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(
+        req.body,
+        signature,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+    } catch (err) {
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    try {
+      switch (event.type) {
+        case "checkout.session.completed": {
+          const session = event.data.object;
+          const userId = session.metadata?.userId;
+          const type = session.metadata?.type;
+
+          if (!userId) break;
+
+          await prisma.checkoutSession.updateMany({
+            where: { stripeCheckoutSessionId: session.id },
+            data: { status: session.status || "complete" },
+          });
+
+          if (type === "topup") {
+            const pack = session.metadata?.pack;
+            const credits = TOPUP_CREDITS[pack];
+
+            if (credits) {
+              await addCredits(userId, credits, "TOPUP", `${pack} purchase`);
+            }
+          }
+
+          if (type === "subscription" && session.subscription) {
+            const subscription = await stripe.subscriptions.retrieve(session.subscription);
+
+            const plan =
+              subscription.items.data[0]?.price?.id === process.env.STRIPE_PRICE_AGENCY_MONTHLY
+                ? "AGENCY"
+                : "PRO";
+
+            await prisma.user.update({
+              where: { id: userId },
+              data: {
+                plan,
+                stripeSubscriptionId: subscription.id,
+                billingStatus: mapStripeStatus(subscription.status),
+                currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+              },
+            });
+
+            await resetMonthlyCredits(userId, plan);
+          }
+
+          break;
+        }
+
+        case "customer.subscription.created":
+        case "customer.subscription.updated": {
+          const subscription = event.data.object;
+
+          const user = await prisma.user.findFirst({
+            where: { stripeCustomerId: subscription.customer },
+          });
+
+          if (!user) break;
+
+          const plan =
+            subscription.items.data[0]?.price?.id === process.env.STRIPE_PRICE_AGENCY_MONTHLY
+              ? "AGENCY"
+              : "PRO";
+
+          await prisma.user.update({
+            where: { id: user.id },
+            data: {
+              plan,
+              stripeSubscriptionId: subscription.id,
+              billingStatus: mapStripeStatus(subscription.status),
+              currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+            },
+          });
+
+          break;
+        }
+
+        case "customer.subscription.deleted": {
+          const subscription = event.data.object;
+
+          const user = await prisma.user.findFirst({
+            where: { stripeCustomerId: subscription.customer },
+          });
+
+          if (!user) break;
+
+          await prisma.user.update({
+            where: { id: user.id },
+            data: {
+              plan: "FREE",
+              billingStatus: "CANCELED",
+              stripeSubscriptionId: null,
+            },
+          });
+
+          break;
+        }
+
+        case "invoice.paid": {
+          const invoice = event.data.object;
+          if (!invoice.subscription) break;
+
+          const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
+
+          const user = await prisma.user.findFirst({
+            where: { stripeCustomerId: subscription.customer },
+          });
+
+          if (!user) break;
+
+          const plan =
+            subscription.items.data[0]?.price?.id === process.env.STRIPE_PRICE_AGENCY_MONTHLY
+              ? "AGENCY"
+              : "PRO";
+
+          await resetMonthlyCredits(user.id, plan);
+
+          await prisma.user.update({
+            where: { id: user.id },
+            data: {
+              billingStatus: "ACTIVE",
+              currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+            },
+          });
+
+          break;
+        }
+      }
+
+      res.json({ received: true });
+    } catch (err) {
+      console.error("Stripe webhook handler error:", err);
+      res.status(500).json({ error: "Webhook handling failed" });
+    }
+  }
+);
+
+export default router;

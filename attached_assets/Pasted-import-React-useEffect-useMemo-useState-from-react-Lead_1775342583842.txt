@@ -1,0 +1,540 @@
+import React, { useEffect, useMemo, useState } from "react";
+
+/**
+ * LeadForge Ads Connect UI Starter
+ *
+ * What this file includes:
+ * - Connect buttons for Meta + Google
+ * - OAuth launch flow
+ * - Connected account status cards
+ * - Google account picker
+ * - Campaign creation form
+ * - Report cards pulling from your backend endpoints
+ *
+ * Expected backend routes from the earlier starter:
+ * GET  /api/ads/:platform/auth-url?state=...
+ * GET  /api/ads/google/accounts?userId=...
+ * POST /api/ads/:platform/campaigns
+ * GET  /api/ads/:platform/reports?userId=...&accountId=...&from=...&to=...
+ *
+ * Important:
+ * - This is a frontend starter file. Split into components later if you want.
+ * - For production, validate OAuth state server-side and never trust localStorage alone.
+ */
+
+type Platform = "meta" | "google";
+
+type UnifiedCampaignInput = {
+  name: string;
+  objective: string;
+  dailyBudget?: number;
+  totalBudget?: number;
+  startTime?: string;
+  endTime?: string;
+  status?: "ACTIVE" | "PAUSED";
+  geoTargets?: string[];
+  businessType?: string;
+  landingPageUrl?: string;
+};
+
+type GoogleAccessibleCustomersResponse = {
+  ok: boolean;
+  accounts: {
+    resourceNames?: string[];
+  };
+};
+
+type ReportRow = {
+  campaignId: string;
+  campaignName: string;
+  impressions?: number;
+  clicks?: number;
+  spend?: number;
+  ctr?: number;
+  conversions?: number;
+  source: Platform;
+};
+
+type ConnectedState = {
+  meta: boolean;
+  google: boolean;
+};
+
+const cardStyle: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #e9e9e9",
+  borderRadius: 18,
+  padding: 18,
+  boxShadow: "0 10px 28px rgba(0,0,0,0.04)",
+};
+
+const buttonStyle: React.CSSProperties = {
+  border: "none",
+  borderRadius: 12,
+  padding: "12px 14px",
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+async function api<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers || {}),
+    },
+  });
+
+  const text = await res.text();
+  let json: any = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = { raw: text };
+  }
+
+  if (!res.ok) {
+    throw new Error(json?.error || `Request failed: ${res.status}`);
+  }
+
+  return json as T;
+}
+
+function buildState(userId: string, platform: Platform) {
+  const nonce = Math.random().toString(36).slice(2);
+  return btoa(JSON.stringify({ userId, platform, nonce, ts: Date.now() }));
+}
+
+function formatMoney(value?: number) {
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+  }).format(value || 0);
+}
+
+function toDateInputValue(date: Date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+export default function AdsConnectDashboard(props: {
+  userId: string;
+  defaultMetaAccountId?: string;
+  defaultGoogleAccountId?: string;
+}) {
+  const [connected, setConnected] = useState<ConnectedState>({ meta: false, google: false });
+  const [loadingPlatform, setLoadingPlatform] = useState<Platform | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const [selectedPlatform, setSelectedPlatform] = useState<Platform>("meta");
+  const [metaAccountId, setMetaAccountId] = useState(props.defaultMetaAccountId || "");
+  const [googleAccountId, setGoogleAccountId] = useState(props.defaultGoogleAccountId || "");
+  const [googleAccounts, setGoogleAccounts] = useState<string[]>([]);
+
+  const [campaignInput, setCampaignInput] = useState<UnifiedCampaignInput>({
+    name: "LeadForge Starter Campaign",
+    objective: "OUTCOME_LEADS",
+    dailyBudget: 25,
+    status: "PAUSED",
+    businessType: "Painting company",
+    landingPageUrl: "https://example.com",
+  });
+
+  const [from, setFrom] = useState(() => toDateInputValue(new Date(Date.now() - 7 * 86400000)));
+  const [to, setTo] = useState(() => toDateInputValue(new Date()));
+  const [reports, setReports] = useState<ReportRow[]>([]);
+  const [reportsLoading, setReportsLoading] = useState(false);
+  const [creatingCampaign, setCreatingCampaign] = useState(false);
+
+  const selectedAccountId = useMemo(() => {
+    return selectedPlatform === "meta" ? metaAccountId : googleAccountId;
+  }, [selectedPlatform, metaAccountId, googleAccountId]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const platform = params.get("ads_connected");
+    const ok = params.get("ok");
+    if (ok === "1" && (platform === "meta" || platform === "google")) {
+      setConnected((prev) => ({ ...prev, [platform]: true }));
+      setSuccess(`${platform === "meta" ? "Meta Ads" : "Google Ads"} connected`);
+
+      const nextUrl = new URL(window.location.href);
+      nextUrl.searchParams.delete("ads_connected");
+      nextUrl.searchParams.delete("ok");
+      window.history.replaceState({}, "", nextUrl.toString());
+    }
+  }, []);
+
+  async function connectPlatform(platform: Platform) {
+    try {
+      setError(null);
+      setSuccess(null);
+      setLoadingPlatform(platform);
+
+      const state = buildState(props.userId, platform);
+      localStorage.setItem(`ads_oauth_state_${platform}`, state);
+
+      const res = await api<{ url: string }>(`/api/ads/${platform}/auth-url?state=${encodeURIComponent(state)}`);
+      window.location.href = res.url;
+    } catch (e: any) {
+      setError(e.message || `Failed to connect ${platform}`);
+    } finally {
+      setLoadingPlatform(null);
+    }
+  }
+
+  async function loadGoogleAccounts() {
+    try {
+      setError(null);
+      const res = await api<GoogleAccessibleCustomersResponse>(`/api/ads/google/accounts?userId=${encodeURIComponent(props.userId)}`);
+      const ids = (res.accounts?.resourceNames || []).map((r) => r.split("/").pop() || r);
+      setGoogleAccounts(ids);
+      if (!googleAccountId && ids[0]) {
+        setGoogleAccountId(ids[0]);
+      }
+      setConnected((prev) => ({ ...prev, google: true }));
+    } catch (e: any) {
+      setError(e.message || "Failed to load Google accounts");
+    }
+  }
+
+  async function createCampaign() {
+    try {
+      setCreatingCampaign(true);
+      setError(null);
+      setSuccess(null);
+
+      if (!selectedAccountId) {
+        throw new Error(`Choose a ${selectedPlatform} account first`);
+      }
+
+      const res = await api<{ ok: boolean; result: { campaignId: string } }>(`/api/ads/${selectedPlatform}/campaigns`, {
+        method: "POST",
+        body: JSON.stringify({
+          userId: props.userId,
+          accountId: selectedAccountId,
+          input: campaignInput,
+        }),
+      });
+
+      setSuccess(`Campaign created on ${selectedPlatform}: ${res.result.campaignId}`);
+    } catch (e: any) {
+      setError(e.message || "Failed to create campaign");
+    } finally {
+      setCreatingCampaign(false);
+    }
+  }
+
+  async function loadReports() {
+    try {
+      setReportsLoading(true);
+      setError(null);
+      if (!selectedAccountId) {
+        throw new Error(`Choose a ${selectedPlatform} account first`);
+      }
+
+      const res = await api<{ ok: boolean; rows: ReportRow[] }>(
+        `/api/ads/${selectedPlatform}/reports?userId=${encodeURIComponent(props.userId)}&accountId=${encodeURIComponent(selectedAccountId)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+      );
+
+      setReports(res.rows || []);
+    } catch (e: any) {
+      setError(e.message || "Failed to load reports");
+    } finally {
+      setReportsLoading(false);
+    }
+  }
+
+  const totals = useMemo(() => {
+    return reports.reduce(
+      (acc, row) => {
+        acc.impressions += row.impressions || 0;
+        acc.clicks += row.clicks || 0;
+        acc.spend += row.spend || 0;
+        acc.conversions += row.conversions || 0;
+        return acc;
+      },
+      { impressions: 0, clicks: 0, spend: 0, conversions: 0 }
+    );
+  }, [reports]);
+
+  return (
+    <div style={{ padding: 24, background: "#f7f7f8", minHeight: "100vh" }}>
+      <div style={{ maxWidth: 1180, margin: "0 auto", display: "grid", gap: 18 }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 32 }}>Ads Connections</h1>
+          <p style={{ marginTop: 8, color: "#666" }}>
+            Connect Meta Ads and Google Ads, pick an account, create campaigns, and view performance.
+          </p>
+        </div>
+
+        {error && (
+          <div style={{ ...cardStyle, borderColor: "#f2c4c4", background: "#fff7f7", color: "#9b1c1c" }}>
+            {error}
+          </div>
+        )}
+
+        {success && (
+          <div style={{ ...cardStyle, borderColor: "#cde9d3", background: "#f6fff7", color: "#1d6b2a" }}>
+            {success}
+          </div>
+        )}
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+          <div style={cardStyle}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div>
+                <h2 style={{ margin: 0 }}>Meta Ads</h2>
+                <div style={{ color: "#666", marginTop: 6 }}>Connect a Meta ad account for campaigns and reports.</div>
+              </div>
+              <div style={{ fontWeight: 700, color: connected.meta ? "#1d6b2a" : "#666" }}>
+                {connected.meta ? "Connected" : "Not connected"}
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gap: 12 }}>
+              <input
+                value={metaAccountId}
+                onChange={(e) => setMetaAccountId(e.target.value)}
+                placeholder="Meta account id, e.g. act_123456789 or 123456789"
+                style={{ padding: 12, borderRadius: 12, border: "1px solid #ddd" }}
+              />
+              <button
+                onClick={() => connectPlatform("meta")}
+                disabled={loadingPlatform === "meta"}
+                style={{ ...buttonStyle }}
+              >
+                {loadingPlatform === "meta" ? "Connecting..." : "Connect Meta Ads"}
+              </button>
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div>
+                <h2 style={{ margin: 0 }}>Google Ads</h2>
+                <div style={{ color: "#666", marginTop: 6 }}>Connect Google Ads and load available customer accounts.</div>
+              </div>
+              <div style={{ fontWeight: 700, color: connected.google ? "#1d6b2a" : "#666" }}>
+                {connected.google ? "Connected" : "Not connected"}
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gap: 12 }}>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={() => connectPlatform("google")}
+                  disabled={loadingPlatform === "google"}
+                  style={{ ...buttonStyle, flex: 1 }}
+                >
+                  {loadingPlatform === "google" ? "Connecting..." : "Connect Google Ads"}
+                </button>
+                <button onClick={loadGoogleAccounts} style={{ ...buttonStyle, flex: 1 }}>
+                  Load Google Accounts
+                </button>
+              </div>
+
+              <select
+                value={googleAccountId}
+                onChange={(e) => setGoogleAccountId(e.target.value)}
+                style={{ padding: 12, borderRadius: 12, border: "1px solid #ddd" }}
+              >
+                <option value="">Choose Google customer</option>
+                {googleAccounts.map((id) => (
+                  <option key={id} value={id}>
+                    {id}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div style={cardStyle}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <div>
+              <h2 style={{ margin: 0 }}>Campaign Builder</h2>
+              <div style={{ color: "#666", marginTop: 6 }}>Create a starter campaign on the selected platform.</div>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                style={{
+                  ...buttonStyle,
+                  background: selectedPlatform === "meta" ? "#111" : "#ececec",
+                  color: selectedPlatform === "meta" ? "#fff" : "#111",
+                }}
+                onClick={() => setSelectedPlatform("meta")}
+              >
+                Meta
+              </button>
+              <button
+                style={{
+                  ...buttonStyle,
+                  background: selectedPlatform === "google" ? "#111" : "#ececec",
+                  color: selectedPlatform === "google" ? "#fff" : "#111",
+                }}
+                onClick={() => setSelectedPlatform("google")}
+              >
+                Google
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <input
+              value={campaignInput.name || ""}
+              onChange={(e) => setCampaignInput((prev) => ({ ...prev, name: e.target.value }))}
+              placeholder="Campaign name"
+              style={{ padding: 12, borderRadius: 12, border: "1px solid #ddd" }}
+            />
+
+            <input
+              value={campaignInput.objective || ""}
+              onChange={(e) => setCampaignInput((prev) => ({ ...prev, objective: e.target.value }))}
+              placeholder={selectedPlatform === "meta" ? "OUTCOME_LEADS" : "SEARCH / leads objective label"}
+              style={{ padding: 12, borderRadius: 12, border: "1px solid #ddd" }}
+            />
+
+            <input
+              type="number"
+              min={1}
+              value={campaignInput.dailyBudget || 25}
+              onChange={(e) => setCampaignInput((prev) => ({ ...prev, dailyBudget: Number(e.target.value) }))}
+              placeholder="Daily budget"
+              style={{ padding: 12, borderRadius: 12, border: "1px solid #ddd" }}
+            />
+
+            <select
+              value={campaignInput.status || "PAUSED"}
+              onChange={(e) => setCampaignInput((prev) => ({ ...prev, status: e.target.value as "ACTIVE" | "PAUSED" }))}
+              style={{ padding: 12, borderRadius: 12, border: "1px solid #ddd" }}
+            >
+              <option value="PAUSED">Paused</option>
+              <option value="ACTIVE">Active</option>
+            </select>
+
+            <input
+              type="date"
+              value={(campaignInput.startTime || "").slice(0, 10)}
+              onChange={(e) => setCampaignInput((prev) => ({ ...prev, startTime: e.target.value ? `${e.target.value}T00:00:00Z` : undefined }))}
+              style={{ padding: 12, borderRadius: 12, border: "1px solid #ddd" }}
+            />
+
+            <input
+              type="date"
+              value={(campaignInput.endTime || "").slice(0, 10)}
+              onChange={(e) => setCampaignInput((prev) => ({ ...prev, endTime: e.target.value ? `${e.target.value}T23:59:59Z` : undefined }))}
+              style={{ padding: 12, borderRadius: 12, border: "1px solid #ddd" }}
+            />
+
+            <input
+              value={campaignInput.businessType || ""}
+              onChange={(e) => setCampaignInput((prev) => ({ ...prev, businessType: e.target.value }))}
+              placeholder="Business type"
+              style={{ padding: 12, borderRadius: 12, border: "1px solid #ddd" }}
+            />
+
+            <input
+              value={campaignInput.landingPageUrl || ""}
+              onChange={(e) => setCampaignInput((prev) => ({ ...prev, landingPageUrl: e.target.value }))}
+              placeholder="Landing page URL"
+              style={{ padding: 12, borderRadius: 12, border: "1px solid #ddd" }}
+            />
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16 }}>
+            <div style={{ color: "#666" }}>
+              Selected account: <strong>{selectedAccountId || "none selected"}</strong>
+            </div>
+            <button onClick={createCampaign} disabled={creatingCampaign} style={buttonStyle}>
+              {creatingCampaign ? "Creating..." : `Create ${selectedPlatform} Campaign`}
+            </button>
+          </div>
+        </div>
+
+        <div style={cardStyle}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <div>
+              <h2 style={{ margin: 0 }}>Reporting</h2>
+              <div style={{ color: "#666", marginTop: 6 }}>Load campaign performance for the selected account.</div>
+            </div>
+            <button onClick={loadReports} disabled={reportsLoading} style={buttonStyle}>
+              {reportsLoading ? "Loading..." : "Load Report"}
+            </button>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 18 }}>
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={{ padding: 12, borderRadius: 12, border: "1px solid #ddd" }} />
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={{ padding: 12, borderRadius: 12, border: "1px solid #ddd" }} />
+            <div style={{ ...cardStyle, padding: 14 }}>
+              <div style={{ fontSize: 12, color: "#666" }}>Spend</div>
+              <div style={{ fontSize: 24, fontWeight: 800 }}>{formatMoney(totals.spend)}</div>
+            </div>
+            <div style={{ ...cardStyle, padding: 14 }}>
+              <div style={{ fontSize: 12, color: "#666" }}>Conversions</div>
+              <div style={{ fontSize: 24, fontWeight: 800 }}>{totals.conversions}</div>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 18 }}>
+            <div style={{ ...cardStyle, padding: 14 }}>
+              <div style={{ fontSize: 12, color: "#666" }}>Impressions</div>
+              <div style={{ fontSize: 24, fontWeight: 800 }}>{totals.impressions}</div>
+            </div>
+            <div style={{ ...cardStyle, padding: 14 }}>
+              <div style={{ fontSize: 12, color: "#666" }}>Clicks</div>
+              <div style={{ fontSize: 24, fontWeight: 800 }}>{totals.clicks}</div>
+            </div>
+            <div style={{ ...cardStyle, padding: 14 }}>
+              <div style={{ fontSize: 12, color: "#666" }}>Avg CTR</div>
+              <div style={{ fontSize: 24, fontWeight: 800 }}>
+                {totals.impressions > 0 ? `${((totals.clicks / totals.impressions) * 100).toFixed(2)}%` : "0.00%"}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ textAlign: "left", borderBottom: "1px solid #e8e8e8" }}>
+                  <th style={{ padding: "12px 8px" }}>Campaign</th>
+                  <th style={{ padding: "12px 8px" }}>Source</th>
+                  <th style={{ padding: "12px 8px" }}>Impressions</th>
+                  <th style={{ padding: "12px 8px" }}>Clicks</th>
+                  <th style={{ padding: "12px 8px" }}>CTR</th>
+                  <th style={{ padding: "12px 8px" }}>Spend</th>
+                  <th style={{ padding: "12px 8px" }}>Conversions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reports.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: 16, color: "#666" }}>
+                      No report rows loaded yet.
+                    </td>
+                  </tr>
+                ) : (
+                  reports.map((row) => (
+                    <tr key={`${row.source}-${row.campaignId}`} style={{ borderBottom: "1px solid #f1f1f1" }}>
+                      <td style={{ padding: "12px 8px", fontWeight: 600 }}>{row.campaignName}</td>
+                      <td style={{ padding: "12px 8px", textTransform: "capitalize" }}>{row.source}</td>
+                      <td style={{ padding: "12px 8px" }}>{row.impressions || 0}</td>
+                      <td style={{ padding: "12px 8px" }}>{row.clicks || 0}</td>
+                      <td style={{ padding: "12px 8px" }}>{typeof row.ctr === "number" ? `${Number(row.ctr).toFixed(2)}%` : "—"}</td>
+                      <td style={{ padding: "12px 8px" }}>{formatMoney(row.spend)}</td>
+                      <td style={{ padding: "12px 8px" }}>{row.conversions || 0}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

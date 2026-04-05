@@ -1,0 +1,602 @@
+import express from "express";
+
+/**
+ * Unified ad platform connector starter for LeadForge.
+ *
+ * What this file gives you:
+ * - Meta Ads OAuth + campaign create + insights fetch
+ * - Google Ads OAuth + account search + campaign budget/campaign create + report fetch
+ * - One shared adapter shape so you can add TikTok/LinkedIn later
+ *
+ * Stack assumptions:
+ * - Node 18+
+ * - Express
+ * - Native fetch available
+ * - TypeScript
+ *
+ * Environment variables you need:
+ *
+ * META_APP_ID=
+ * META_APP_SECRET=
+ * META_REDIRECT_URI=
+ * META_API_VERSION=v25.0
+ *
+ * GOOGLE_CLIENT_ID=
+ * GOOGLE_CLIENT_SECRET=
+ * GOOGLE_REDIRECT_URI=
+ * GOOGLE_ADS_DEVELOPER_TOKEN=
+ * GOOGLE_ADS_LOGIN_CUSTOMER_ID=   // optional MCC id, digits only
+ * GOOGLE_ADS_API_VERSION=v23
+ */
+
+const app = express();
+app.use(express.json());
+
+// -----------------------------
+// Shared types
+// -----------------------------
+
+type Platform = "meta" | "google";
+
+type UnifiedCampaignInput = {
+  name: string;
+  objective: string;
+  dailyBudget?: number; // in user currency units, eg 25 = $25/day
+  totalBudget?: number;
+  startTime?: string;
+  endTime?: string;
+  status?: "ACTIVE" | "PAUSED";
+  geoTargets?: string[];
+  businessType?: string;
+  landingPageUrl?: string;
+};
+
+type UnifiedReportRow = {
+  campaignId: string;
+  campaignName: string;
+  impressions?: number;
+  clicks?: number;
+  spend?: number;
+  ctr?: number;
+  conversions?: number;
+  source: Platform;
+  raw?: unknown;
+};
+
+type OAuthTokenSet = {
+  accessToken: string;
+  refreshToken?: string;
+  expiresIn?: number;
+  scope?: string;
+  tokenType?: string;
+  raw?: unknown;
+};
+
+type CreateCampaignResult = {
+  campaignId: string;
+  raw?: unknown;
+};
+
+interface AdsConnector {
+  platform: Platform;
+  getAuthUrl(state: string): string;
+  exchangeCodeForTokens(code: string): Promise<OAuthTokenSet>;
+  createCampaign(args: {
+    accountId: string;
+    tokens: OAuthTokenSet;
+    input: UnifiedCampaignInput;
+  }): Promise<CreateCampaignResult>;
+  fetchCampaignReport(args: {
+    accountId: string;
+    tokens: OAuthTokenSet;
+    from: string;
+    to: string;
+  }): Promise<UnifiedReportRow[]>;
+}
+
+// -----------------------------
+// Helpers
+// -----------------------------
+
+function env(name: string, fallback?: string) {
+  const value = process.env[name] ?? fallback;
+  if (!value) throw new Error(`Missing env var: ${name}`);
+  return value;
+}
+
+function qs(params: Record<string, string | number | undefined>) {
+  const out = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined) out.set(k, String(v));
+  }
+  return out.toString();
+}
+
+async function http<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
+  const text = await res.text();
+  let json: any = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = text;
+  }
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} ${res.statusText} -> ${url}\n${typeof json === "string" ? json : JSON.stringify(json)}`);
+  }
+  return json as T;
+}
+
+function toMicros(amount: number) {
+  return Math.round(amount * 1_000_000);
+}
+
+function toMinorUnits(amount: number) {
+  return Math.round(amount * 100);
+}
+
+// -----------------------------
+// Meta Ads connector
+// -----------------------------
+
+class MetaAdsConnector implements AdsConnector {
+  platform: Platform = "meta";
+  private version = env("META_API_VERSION", "v25.0");
+  private appId = env("META_APP_ID");
+  private appSecret = env("META_APP_SECRET");
+  private redirectUri = env("META_REDIRECT_URI");
+
+  getAuthUrl(state: string) {
+    const scope = [
+      "ads_management",
+      "ads_read",
+      "business_management",
+    ].join(",");
+
+    return `https://www.facebook.com/${this.version}/dialog/oauth?${qs({
+      client_id: this.appId,
+      redirect_uri: this.redirectUri,
+      state,
+      scope,
+      response_type: "code",
+    })}`;
+  }
+
+  async exchangeCodeForTokens(code: string): Promise<OAuthTokenSet> {
+    const url = `https://graph.facebook.com/${this.version}/oauth/access_token?${qs({
+      client_id: this.appId,
+      client_secret: this.appSecret,
+      redirect_uri: this.redirectUri,
+      code,
+    })}`;
+
+    const token = await http<any>(url, { method: "GET" });
+    return {
+      accessToken: token.access_token,
+      tokenType: token.token_type,
+      expiresIn: token.expires_in,
+      raw: token,
+    };
+  }
+
+  async createCampaign(args: {
+    accountId: string;
+    tokens: OAuthTokenSet;
+    input: UnifiedCampaignInput;
+  }): Promise<CreateCampaignResult> {
+    const actId = args.accountId.startsWith("act_") ? args.accountId : `act_${args.accountId}`;
+    const url = `https://graph.facebook.com/${this.version}/${actId}/campaigns`;
+
+    const body = new URLSearchParams({
+      name: args.input.name,
+      objective: args.input.objective,
+      status: args.input.status ?? "PAUSED",
+      special_ad_categories: "[]",
+      access_token: args.tokens.accessToken,
+    });
+
+    const json = await http<any>(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    });
+
+    return { campaignId: json.id, raw: json };
+  }
+
+  async fetchCampaignReport(args: {
+    accountId: string;
+    tokens: OAuthTokenSet;
+    from: string;
+    to: string;
+  }): Promise<UnifiedReportRow[]> {
+    const actId = args.accountId.startsWith("act_") ? args.accountId : `act_${args.accountId}`;
+    const url = `https://graph.facebook.com/${this.version}/${actId}/insights?${qs({
+      level: "campaign",
+      fields: "campaign_id,campaign_name,impressions,clicks,spend,ctr,actions",
+      time_range: JSON.stringify({ since: args.from, until: args.to }),
+      access_token: args.tokens.accessToken,
+    })}`;
+
+    const json = await http<any>(url, { method: "GET" });
+    const rows = Array.isArray(json?.data) ? json.data : [];
+
+    return rows.map((r: any) => ({
+      campaignId: r.campaign_id,
+      campaignName: r.campaign_name,
+      impressions: Number(r.impressions || 0),
+      clicks: Number(r.clicks || 0),
+      spend: Number(r.spend || 0),
+      ctr: Number(r.ctr || 0),
+      conversions: Array.isArray(r.actions)
+        ? r.actions.reduce((sum: number, a: any) => sum + Number(a.value || 0), 0)
+        : undefined,
+      source: "meta",
+      raw: r,
+    }));
+  }
+}
+
+// -----------------------------
+// Google Ads connector
+// -----------------------------
+
+class GoogleAdsConnector implements AdsConnector {
+  platform: Platform = "google";
+  private clientId = env("GOOGLE_CLIENT_ID");
+  private clientSecret = env("GOOGLE_CLIENT_SECRET");
+  private redirectUri = env("GOOGLE_REDIRECT_URI");
+  private developerToken = env("GOOGLE_ADS_DEVELOPER_TOKEN");
+  private apiVersion = env("GOOGLE_ADS_API_VERSION", "v23");
+  private loginCustomerId = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID;
+
+  getAuthUrl(state: string) {
+    const params = new URLSearchParams({
+      client_id: this.clientId,
+      redirect_uri: this.redirectUri,
+      response_type: "code",
+      access_type: "offline",
+      prompt: "consent",
+      scope: [
+        "https://www.googleapis.com/auth/adwords",
+      ].join(" "),
+      state,
+    });
+
+    return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  }
+
+  async exchangeCodeForTokens(code: string): Promise<OAuthTokenSet> {
+    const json = await http<any>("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code,
+        client_id: this.clientId,
+        client_secret: this.clientSecret,
+        redirect_uri: this.redirectUri,
+        grant_type: "authorization_code",
+      }),
+    });
+
+    return {
+      accessToken: json.access_token,
+      refreshToken: json.refresh_token,
+      expiresIn: json.expires_in,
+      scope: json.scope,
+      tokenType: json.token_type,
+      raw: json,
+    };
+  }
+
+  private async refreshAccessToken(refreshToken: string): Promise<string> {
+    const json = await http<any>("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: this.clientId,
+        client_secret: this.clientSecret,
+        refresh_token: refreshToken,
+        grant_type: "refresh_token",
+      }),
+    });
+
+    return json.access_token;
+  }
+
+  private async getBearer(tokens: OAuthTokenSet) {
+    if (tokens.accessToken) return tokens.accessToken;
+    if (tokens.refreshToken) return this.refreshAccessToken(tokens.refreshToken);
+    throw new Error("Google tokens missing accessToken/refreshToken");
+  }
+
+  private headers(accessToken: string) {
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${accessToken}`,
+      "developer-token": this.developerToken,
+      "Content-Type": "application/json",
+    };
+    if (this.loginCustomerId) {
+      headers["login-customer-id"] = this.loginCustomerId;
+    }
+    return headers;
+  }
+
+  async createCampaign(args: {
+    accountId: string;
+    tokens: OAuthTokenSet;
+    input: UnifiedCampaignInput;
+  }): Promise<CreateCampaignResult> {
+    const customerId = args.accountId.replace(/-/g, "");
+    const accessToken = await this.getBearer(args.tokens);
+
+    // 1) Create budget
+    const budgetUrl = `https://googleads.googleapis.com/${this.apiVersion}/customers/${customerId}/campaignBudgets:mutate`;
+    const budgetJson = await http<any>(budgetUrl, {
+      method: "POST",
+      headers: this.headers(accessToken),
+      body: JSON.stringify({
+        operations: [
+          {
+            create: {
+              name: `${args.input.name} Budget ${Date.now()}`,
+              amountMicros: String(toMicros(args.input.dailyBudget ?? 25)),
+              deliveryMethod: "STANDARD",
+              explicitlyShared: false,
+            },
+          },
+        ],
+      }),
+    });
+
+    const budgetResourceName = budgetJson.results?.[0]?.resourceName;
+    if (!budgetResourceName) throw new Error("Failed to create Google Ads budget");
+
+    // 2) Create campaign
+    const campaignUrl = `https://googleads.googleapis.com/${this.apiVersion}/customers/${customerId}/campaigns:mutate`;
+    const campaignJson = await http<any>(campaignUrl, {
+      method: "POST",
+      headers: this.headers(accessToken),
+      body: JSON.stringify({
+        operations: [
+          {
+            create: {
+              name: args.input.name,
+              status: args.input.status ?? "PAUSED",
+              advertisingChannelType: "SEARCH",
+              campaignBudget: budgetResourceName,
+              manualCpc: {},
+              startDate: args.input.startTime ? args.input.startTime.slice(0, 10).replace(/-/g, "") : undefined,
+              endDate: args.input.endTime ? args.input.endTime.slice(0, 10).replace(/-/g, "") : undefined,
+            },
+          },
+        ],
+      }),
+    });
+
+    const resourceName = campaignJson.results?.[0]?.resourceName as string | undefined;
+    if (!resourceName) throw new Error("Failed to create Google Ads campaign");
+
+    return {
+      campaignId: resourceName.split("/").pop() || resourceName,
+      raw: { budgetJson, campaignJson },
+    };
+  }
+
+  async fetchCampaignReport(args: {
+    accountId: string;
+    tokens: OAuthTokenSet;
+    from: string;
+    to: string;
+  }): Promise<UnifiedReportRow[]> {
+    const customerId = args.accountId.replace(/-/g, "");
+    const accessToken = await this.getBearer(args.tokens);
+    const url = `https://googleads.googleapis.com/${this.apiVersion}/customers/${customerId}/googleAds:searchStream`;
+
+    const query = `
+      SELECT
+        campaign.id,
+        campaign.name,
+        metrics.impressions,
+        metrics.clicks,
+        metrics.ctr,
+        metrics.cost_micros,
+        metrics.conversions
+      FROM campaign
+      WHERE segments.date BETWEEN '${args.from}' AND '${args.to}'
+    `;
+
+    const stream = await http<any[]>(url, {
+      method: "POST",
+      headers: this.headers(accessToken),
+      body: JSON.stringify({ query }),
+    });
+
+    const rows = stream.flatMap((chunk: any) => chunk.results ?? []);
+    return rows.map((r: any) => ({
+      campaignId: String(r.campaign?.id ?? ""),
+      campaignName: r.campaign?.name ?? "",
+      impressions: Number(r.metrics?.impressions || 0),
+      clicks: Number(r.metrics?.clicks || 0),
+      ctr: Number(r.metrics?.ctr || 0),
+      spend: Number(r.metrics?.costMicros || 0) / 1_000_000,
+      conversions: Number(r.metrics?.conversions || 0),
+      source: "google",
+      raw: r,
+    }));
+  }
+
+  async listAccessibleCustomers(tokens: OAuthTokenSet) {
+    const accessToken = await this.getBearer(tokens);
+    return http<any>("https://googleads.googleapis.com/v23/customers:listAccessibleCustomers", {
+      method: "GET",
+      headers: this.headers(accessToken),
+    });
+  }
+}
+
+// -----------------------------
+// Registry
+// -----------------------------
+
+const connectors = {
+  meta: new MetaAdsConnector(),
+  google: new GoogleAdsConnector(),
+};
+
+function connectorFor(platform: Platform) {
+  return connectors[platform];
+}
+
+// -----------------------------
+// Minimal token store contract
+// Replace with your DB
+// -----------------------------
+
+type StoredConnection = {
+  userId: string;
+  platform: Platform;
+  accountId?: string;
+  tokens: OAuthTokenSet;
+};
+
+const fakeStore = new Map<string, StoredConnection>();
+
+function storeKey(userId: string, platform: Platform) {
+  return `${userId}:${platform}`;
+}
+
+async function saveConnection(row: StoredConnection) {
+  fakeStore.set(storeKey(row.userId, row.platform), row);
+}
+
+async function getConnection(userId: string, platform: Platform) {
+  return fakeStore.get(storeKey(userId, platform)) || null;
+}
+
+// -----------------------------
+// Routes
+// -----------------------------
+
+app.get("/api/ads/:platform/auth-url", async (req, res) => {
+  try {
+    const platform = req.params.platform as Platform;
+    const state = String(req.query.state || "replace-with-signed-state");
+    const connector = connectorFor(platform);
+    res.json({ url: connector.getAuthUrl(state) });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.get("/api/ads/:platform/callback", async (req, res) => {
+  try {
+    const platform = req.params.platform as Platform;
+    const code = String(req.query.code || "");
+    const userId = String(req.query.userId || "demo-user");
+    if (!code) throw new Error("Missing code");
+
+    const connector = connectorFor(platform);
+    const tokens = await connector.exchangeCodeForTokens(code);
+
+    await saveConnection({
+      userId,
+      platform,
+      tokens,
+    });
+
+    res.json({ ok: true, platform });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.post("/api/ads/:platform/campaigns", async (req, res) => {
+  try {
+    const platform = req.params.platform as Platform;
+    const userId = String(req.body.userId || "demo-user");
+    const accountId = String(req.body.accountId || "");
+    const input = req.body.input as UnifiedCampaignInput;
+
+    if (!accountId) throw new Error("Missing accountId");
+    if (!input?.name) throw new Error("Missing input.name");
+
+    const connection = await getConnection(userId, platform);
+    if (!connection) throw new Error(`No ${platform} connection found for ${userId}`);
+
+    const result = await connectorFor(platform).createCampaign({
+      accountId,
+      tokens: connection.tokens,
+      input,
+    });
+
+    res.json({ ok: true, result });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.get("/api/ads/:platform/reports", async (req, res) => {
+  try {
+    const platform = req.params.platform as Platform;
+    const userId = String(req.query.userId || "demo-user");
+    const accountId = String(req.query.accountId || "");
+    const from = String(req.query.from || "2026-01-01");
+    const to = String(req.query.to || "2026-01-31");
+
+    if (!accountId) throw new Error("Missing accountId");
+
+    const connection = await getConnection(userId, platform);
+    if (!connection) throw new Error(`No ${platform} connection found for ${userId}`);
+
+    const rows = await connectorFor(platform).fetchCampaignReport({
+      accountId,
+      tokens: connection.tokens,
+      from,
+      to,
+    });
+
+    res.json({ ok: true, rows });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.get("/api/ads/google/accounts", async (req, res) => {
+  try {
+    const userId = String(req.query.userId || "demo-user");
+    const connection = await getConnection(userId, "google");
+    if (!connection) throw new Error("No Google connection found");
+
+    const connector = connectors.google;
+    const accounts = await connector.listAccessibleCustomers(connection.tokens);
+    res.json({ ok: true, accounts });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// -----------------------------
+// Future platforms
+// -----------------------------
+
+/**
+ * Add TikTok / LinkedIn the same way:
+ * class TikTokAdsConnector implements AdsConnector { ... }
+ * class LinkedInAdsConnector implements AdsConnector { ... }
+ * connectors.tiktok = new TikTokAdsConnector()
+ * connectors.linkedin = new LinkedInAdsConnector()
+ */
+
+// -----------------------------
+// Local dev boot
+// -----------------------------
+
+if (require.main === module) {
+  const port = Number(process.env.PORT || 3001);
+  app.listen(port, () => {
+    console.log(`Ads connector server running on http://localhost:${port}`);
+  });
+}
+
+export default app;

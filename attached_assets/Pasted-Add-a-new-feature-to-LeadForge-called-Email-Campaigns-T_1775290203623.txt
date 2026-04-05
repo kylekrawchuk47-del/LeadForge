@@ -1,0 +1,185 @@
+Add a new feature to LeadForge called Email Campaigns.
+
+This feature should let users turn a generated offer into an email campaign for approved contacts.
+
+IMPORTANT RULE:
+Do NOT automatically send emails to all contacts by default.
+The user must review, confirm, and send manually.
+Only contacts marked as subscribed or marketing-consented can receive campaign emails.
+
+GOAL:
+When a user generates an offer, they should be able to instantly create an email campaign from it, choose a contact segment, preview the email, and send or schedule it.
+
+ADD THESE NEW SECTIONS:
+
+1. EMAIL CAMPAIGNS PAGE
+Create a premium Email Campaigns page with:
+- campaign list
+- draft campaigns
+- scheduled campaigns
+- sent campaigns
+- campaign status
+- search and filters
+- create new campaign button
+
+Statuses:
+- Draft
+- Scheduled
+- Sent
+- Archived
+
+2. CREATE EMAIL CAMPAIGN FLOW
+Add a flow that starts after a user generates an offer.
+
+After offer generation, show:
+"Turn this offer into an email campaign"
+
+Add button:
+- Create Email Campaign
+
+When clicked, open a campaign builder with these steps:
+
+Step 1:
+Choose audience / contact segment
+
+Step 2:
+Generate email content
+
+Step 3:
+Preview email
+
+Step 4:
+Send test / send now / schedule
+
+3. AUDIENCE SELECTION
+Allow the user to choose from:
+- All subscribed contacts
+- Warm leads
+- Past customers
+- New leads
+- Custom tagged contacts
+
+Only allow marketing emails to:
+- subscribed
+- marketing-consented
+
+Do NOT allow sends to:
+- unsubscribed
+- no consent
+- transactional only
+
+4. EMAIL CONTENT GENERATION
+When the campaign is created from an offer, automatically generate:
+
+- Subject line
+- Preview text
+- Email headline
+- Email subheadline
+- Body copy
+- Offer section
+- CTA button text
+- Closing text
+
+Generate 3 variations for:
+- subject line
+- CTA
+- headline
+
+Keep the content professional, clear, persuasive, and suitable for local service businesses.
+
+5. EMAIL PREVIEW
+Create a premium email preview section showing:
+
+- logo
+- business name
+- subject line
+- preview text
+- email body
+- CTA button
+- footer
+
+Use a clean, modern email card layout with LeadForge branding.
+
+6. SEND OPTIONS
+Allow users to:
+- Save draft
+- Send test email
+- Send now
+- Schedule send
+
+Add a confirmation modal before sending:
+"Are you sure you want to send this campaign to X approved contacts?"
+
+7. CONTACT REQUIREMENTS
+Expand the Contacts section with these fields:
+- first name
+- last name
+- email
+- phone
+- company
+- tags
+- consent status
+- unsubscribe status
+- date added
+- notes
+
+Consent statuses:
+- subscribed
+- unsubscribed
+- no consent
+- transactional only
+
+8. UNSUBSCRIBE SUPPORT
+Every marketing email preview must include:
+- business name
+- contact info
+- unsubscribe link placeholder
+
+If a contact is unsubscribed, they must not receive future campaigns.
+
+9. CAMPAIGN METRICS PLACEHOLDER
+Add a metrics area for each campaign showing:
+- recipients
+- delivered
+- opened
+- clicked
+- unsubscribed
+
+Use placeholder/sample data for now if backend tracking is not built yet.
+
+10. DESIGN REQUIREMENTS
+Keep the design premium and consistent with LeadForge branding:
+- navy blue sidebar
+- white main content area
+- elegant cards
+- strong spacing
+- modern typography
+- simple and user friendly
+- premium SaaS feel
+
+11. USER EXPERIENCE REQUIREMENTS
+Make the email campaign flow easy for non-technical business owners.
+The user should understand the steps instantly.
+Keep the flow clean and simple.
+
+12. IMPORTANT POSITIONING
+This feature should feel like:
+- permission-based email marketing
+- easy follow-up system
+- lead nurturing tool
+
+It should NOT feel like:
+- spam software
+- bulk email blasting tool
+- complicated enterprise CRM
+
+13. SAMPLE CTA TEXT
+Use buttons like:
+- Create Email Campaign
+- Generate Email
+- Preview Campaign
+- Send Test
+- Send Now
+- Schedule Campaign
+
+Please build the full front-end experience first with realistic placeholder content and sample contact data so the feature already looks complete and polished.

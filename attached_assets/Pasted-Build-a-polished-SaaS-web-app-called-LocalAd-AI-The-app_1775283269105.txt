@@ -1,0 +1,308 @@
+Build a polished SaaS web app called LocalAd AI.
+
+The app helps local service businesses create professional ads quickly for Facebook, Instagram, Google, flyers, and landing pages.
+
+IMPORTANT GOAL:
+This website must look premium, modern, trustworthy, and very user friendly. It should feel like a real paid software product, not a basic template. The design should be clean, simple, mobile-friendly, and easy for non-technical local business owners to use.
+
+BRAND STYLE:
+- Professional
+- Premium
+- Clean
+- Modern
+- Trustworthy
+- Simple and intuitive
+- Strong whitespace
+- Smooth spacing
+- Elegant card layouts
+- Soft shadows
+- Rounded corners
+- High-end SaaS feel
+- Easy navigation
+- Responsive on desktop and mobile
+
+TARGET USERS:
+Local businesses, especially service businesses such as:
+- painters
+- roofers
+- landscapers
+- cleaners
+- pressure washing companies
+- flooring companies
+- electricians
+- contractors
+
+CORE VALUE PROPOSITION:
+Users answer a few simple questions about their business and instantly get ready-to-use ads and marketing copy tailored to their business.
+
+MAIN PAGES TO BUILD:
+
+1. LANDING PAGE
+Create a beautiful premium homepage with:
+- Hero section
+- Strong headline
+- Clear subheadline
+- Call-to-action buttons
+- Feature section
+- How it works section
+- Example outputs section
+- Testimonials section
+- Pricing preview
+- FAQ section
+- Final CTA section
+- Professional footer
+
+Use this homepage headline:
+"Create professional ads for your local business in minutes."
+
+Use this subheadline:
+"Generate ready-to-use Facebook, Instagram, Google, flyer, and website ad copy tailored to your business, brand, and location."
+
+Hero CTA buttons:
+- Start Free
+- See Demo
+
+2. AUTHENTICATION
+Build:
+- Sign up page
+- Login page
+- Forgot password flow
+- Clean modern auth cards
+- Social sign-in placeholder area if needed
+
+3. USER DASHBOARD
+After login, users go to a professional dashboard showing:
+- Welcome header
+- Business profiles
+- Recent campaigns
+- Quick actions
+- Generate New Ad button
+- Saved ads
+- Export area
+- Account overview
+
+Dashboard should feel premium and organized, with clean cards and sections.
+
+4. BUSINESS PROFILE SETUP
+Create a setup form where users can enter:
+- Business name
+- Business category
+- City / service area
+- Services offered
+- Ideal customer
+- Phone number
+- Website
+- Offer / promotion
+- Tone of voice
+- Brand description
+- Testimonials
+- Preferred CTA
+- Upload logo
+- Upload business photos
+- Brand colors
+
+Tone options:
+- Professional
+- Friendly
+- Bold
+- Luxury
+- Trustworthy
+- Straightforward
+
+5. AD GENERATOR PAGE
+Create a main generator tool where users can choose:
+- Ad type
+- Platform
+- Tone
+- Offer
+- Goal
+
+Platforms:
+- Facebook ad
+- Instagram post
+- Instagram story
+- Google Search ad
+- Flyer copy
+- Website hero copy
+- Promotional text message
+
+Goals:
+- Lead generation
+- Brand awareness
+- Seasonal promotion
+- Limited-time offer
+- Retargeting
+- Trust/reputation
+- New customer promo
+
+The generator should output:
+- Headlines
+- Primary text
+- CTA text
+- Offer angle
+- Optional image idea/prompt
+- Optional short description
+- Multiple variations
+
+Generate at least 3 to 5 variations per request.
+
+6. SAVED CAMPAIGNS PAGE
+Users can:
+- Save campaigns
+- Name campaigns
+- View previous ad generations
+- Duplicate campaigns
+- Delete campaigns
+- Reuse saved business profiles
+
+7. EXPORT PAGE
+Users can:
+- Copy ad text easily
+- Export text
+- Download campaign summary
+- Copy image prompts
+- View generated ad sets in organized cards
+
+8. PRICING PAGE
+Create a clean SaaS pricing page with 3 tiers:
+- Free
+- Pro
+- Agency
+
+Suggested pricing display:
+Free
+- limited generations
+- basic exports
+
+Pro
+- unlimited ad generations
+- save campaigns
+- full exports
+
+Agency
+- multiple business profiles
+- team features
+- advanced exports
+
+Add professional CTA buttons under each plan.
+
+9. SETTINGS PAGE
+Include:
+- account info
+- billing section placeholder
+- business profile management
+- brand settings
+- password reset
+- notification settings
+
+DESIGN REQUIREMENTS:
+- Make the UI look like a high-end startup SaaS product
+- Use a premium layout with strong spacing and modern typography
+- Keep colors professional and attractive
+- Use a neutral base with one strong accent color
+- Avoid clutter
+- Keep forms simple and easy to understand
+- Add icons where useful
+- Add hover states and polished buttons
+- Use elegant cards and sections
+- Make it feel smooth and clean
+
+USER EXPERIENCE REQUIREMENTS:
+- Very easy to use
+- Clear navigation
+- Step-by-step flow
+- No confusing layouts
+- Professional onboarding
+- Fast access to main actions
+- Strong mobile responsiveness
+- User can understand how to use the app right away
+
+NAVIGATION:
+Top nav should include:
+- Home
+- Features
+- Pricing
+- Login
+- Get Started
+
+Inside app sidebar nav:
+- Dashboard
+- Business Profiles
+- Ad Generator
+- Saved Campaigns
+- Exports
+- Pricing
+- Settings
+
+FEATURES SECTION FOR HOMEPAGE:
+Include these feature cards:
+- AI ad copy generation
+- Multi-platform ad creation
+- Business profile personalization
+- Local business targeting
+- Quick campaign exports
+- Easy-to-use dashboard
+
+HOW IT WORKS SECTION:
+Use 3 steps:
+1. Enter your business details
+2. Generate tailored ads instantly
+3. Copy, export, and launch your campaign
+
+EXAMPLE OUTPUTS SECTION:
+Show sample cards for:
+- Painting company ad
+- Roofing company ad
+- Landscaping company ad
+
+Use realistic professional sample copy inside the cards.
+
+TESTIMONIALS SECTION:
+Add 3 placeholder testimonials from local business owners.
+
+FAQ SECTION:
+Include common questions like:
+- How does it work?
+- What types of businesses is this for?
+- Can I generate ads for multiple platforms?
+- Do I need marketing experience?
+- Can I save my campaigns?
+
+TECH REQUIREMENTS:
+- Build as a clean, production-style SaaS MVP
+- Use a modern frontend framework
+- Use responsive design
+- Use component-based structure
+- Create reusable UI components
+- Keep code clean and organized
+- Add placeholder backend/database structure if needed
+- Include sample data so the app looks complete on first load
+
+IMPORTANT UI DIRECTION:
+Do not make it look childish, flashy, or cheap.
+Do not make it overly dark or hard to read.
+Do not crowd the page.
+Do not use random bright colors.
+Make it look like a serious software product for business owners.
+
+BONUS FEATURES TO INCLUDE IF POSSIBLE:
+- Generate multiple ad angles
+- Favorite saved outputs
+- Copy-to-clipboard buttons
+- Simple onboarding wizard
+- Template suggestions by industry
+- Empty states that still look polished
+- Loading states and success messages
+- Demo sample account experience
+
+SAMPLE INDUSTRIES TO SUPPORT:
+- Painting
+- Roofing
+- Landscaping
+- House cleaning
+- Pressure washing
+- Flooring
+- Plumbing
+- Electrical
+
+Please build the full front-end experience first with polished design, realistic placeholder content, and clean navigation so it already feels like a premium working SaaS app.

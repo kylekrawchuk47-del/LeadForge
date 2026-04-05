@@ -1,0 +1,68 @@
+import React, { useEffect, useState } from "react";
+
+export default function BillingSummary({ userId }) {
+  const [billing, setBilling] = useState(null);
+
+  useEffect(() => {
+    fetch("/api/billing/me", {
+      headers: { "x-user-id": userId },
+    })
+      .then((r) => r.json())
+      .then(setBilling)
+      .catch(console.error);
+  }, [userId]);
+
+  const openPortal = async () => {
+    const res = await fetch("/api/billing/portal", {
+      method: "POST",
+      headers: { "x-user-id": userId },
+    });
+    const data = await res.json();
+    if (data.url) window.location.href = data.url;
+  };
+
+  if (!billing) return <div>Loading billing...</div>;
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 className="text-2xl font-bold text-slate-900">Billing</h2>
+
+      <div className="mt-6 grid gap-4 md:grid-cols-4">
+        <div className="rounded-xl bg-slate-50 p-4">
+          <div className="text-sm text-slate-500">Current plan</div>
+          <div className="mt-1 text-xl font-semibold text-slate-900">{billing.plan}</div>
+        </div>
+
+        <div className="rounded-xl bg-slate-50 p-4">
+          <div className="text-sm text-slate-500">Credits remaining</div>
+          <div className="mt-1 text-xl font-semibold text-slate-900">{billing.creditsRemaining}</div>
+        </div>
+
+        <div className="rounded-xl bg-slate-50 p-4">
+          <div className="text-sm text-slate-500">Credits used</div>
+          <div className="mt-1 text-xl font-semibold text-slate-900">{billing.creditsUsedThisMonth}</div>
+        </div>
+
+        <div className="rounded-xl bg-slate-50 p-4">
+          <div className="text-sm text-slate-500">Billing status</div>
+          <div className="mt-1 text-xl font-semibold text-slate-900">{billing.billingStatus}</div>
+        </div>
+      </div>
+
+      {billing.currentPeriodEnd && (
+        <p className="mt-4 text-sm text-slate-600">
+          Renews on {new Date(billing.currentPeriodEnd).toLocaleDateString()}
+        </p>
+      )}
+
+      {billing.plan !== "FREE" && (
+        <button
+          onClick={openPortal}
+          className="mt-6 rounded-xl bg-blue-900 px-4 py-3 font-semibold text-white hover:bg-blue-800"
+        >
+          Manage Subscription
+        </button>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,89 @@
+import { prisma } from "../lib/prisma.js";
+import { PLAN_CONFIG, CREDIT_COSTS } from "../config/plans.js";
+
+export async function addCredits(userId, amount, type, description) {
+  return prisma.$transaction(async (tx) => {
+    const user = await tx.user.update({
+      where: { id: userId },
+      data: {
+        creditsRemaining: { increment: amount },
+      },
+    });
+
+    await tx.creditTransaction.create({
+      data: {
+        userId,
+        amount,
+        type,
+        description,
+      },
+    });
+
+    return user;
+  });
+}
+
+export async function subtractCredits(userId, amount, description) {
+  return prisma.$transaction(async (tx) => {
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: { creditsRemaining: true },
+    });
+
+    if (!user) throw new Error("User not found");
+    if (user.creditsRemaining < amount) {
+      throw new Error("Not enough credits");
+    }
+
+    const updated = await tx.user.update({
+      where: { id: userId },
+      data: {
+        creditsRemaining: { decrement: amount },
+        creditsUsedThisMonth: { increment: amount },
+      },
+    });
+
+    await tx.creditTransaction.create({
+      data: {
+        userId,
+        amount: -amount,
+        type: "USAGE",
+        description,
+      },
+    });
+
+    return updated;
+  });
+}
+
+export async function consumeCreditsForAction(userId, actionKey) {
+  const amount = CREDIT_COSTS[actionKey];
+  if (!amount) throw new Error(`Unknown action: ${actionKey}`);
+  return subtractCredits(userId, amount, actionKey);
+}
+
+export async function resetMonthlyCredits(userId, plan) {
+  const config = PLAN_CONFIG[plan];
+  if (!config) throw new Error("Unknown plan");
+
+  return prisma.$transaction(async (tx) => {
+    const user = await tx.user.update({
+      where: { id: userId },
+      data: {
+        creditsRemaining: config.monthlyCredits,
+        creditsUsedThisMonth: 0,
+      },
+    });
+
+    await tx.creditTransaction.create({
+      data: {
+        userId,
+        amount: config.monthlyCredits,
+        type: "MONTHLY_RESET",
+        description: `${plan} monthly credits reset`,
+      },
+    });
+
+    return user;
+  });
+}

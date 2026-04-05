@@ -1,0 +1,326 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-card-border: hsl(var(--card-border));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-popover-border: hsl(var(--popover-border));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-border: var(--primary-border);
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-secondary-border: var(--secondary-border);
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-muted-border: var(--muted-border);
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-accent-border: var(--accent-border);
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-destructive-border: var(--destructive-border);
+
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-primary-border: var(--sidebar-primary-border);
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-accent-border: var(--sidebar-accent-border);
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  --font-sans: var(--app-font-sans);
+  --font-serif: var(--app-font-serif);
+  --font-mono: var(--app-font-mono);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/*
+ * ── LeadForge Brand Palette (sampled from official logo) ─────────────────────
+ *
+ *  Logo background : #060A14   →  hsl(222 75% 6%)
+ *  "Lead" text     : #FFFFFF   →  white
+ *  "Forge" cyan    : #19D3FF   →  hsl(191 100% 55%)   ← primary
+ *  "Forge" blue    : #2B85E4   →  hsl(213 74% 53%)    ← secondary accent
+ *  Growth arrow    : #3DD13D   →  hsl(120 57% 52%)    ← chart-3 / success
+ *  Fire ember      : #FF7A1A   →  hsl(27 100% 55%)    ← chart-4 / warning
+ *  Card surface    : #0C1528   →  hsl(220 52% 11%)
+ *  Sidebar         : #040810   →  hsl(222 82% 5%)
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+:root {
+  --button-outline: rgba(255,255,255, .10);
+  --badge-outline: rgba(255,255,255, .05);
+  --opaque-button-border-intensity: 9;
+  --elevate-1: rgba(255,255,255, .03);
+  --elevate-2: rgba(255,255,255, .07);
+
+  /* Logo background: #060A14 */
+  --background: 222 75% 6%;
+  --foreground: 220 57% 97%;       /* #F5F7FB */
+
+  /* Card surface: #0C1528 */
+  --card: 220 52% 11%;
+  --card-foreground: 220 57% 97%;
+  --popover: 220 52% 11%;
+  --popover-foreground: 220 57% 97%;
+
+  /* "Forge" cyan endpoint: #19D3FF */
+  --primary: 191 100% 55%;
+  --primary-foreground: 222 75% 6%;
+
+  /* "Forge" blue midpoint: #2B85E4 */
+  --secondary: 213 52% 18%;
+  --secondary-foreground: 215 22% 82%;
+
+  --muted: 218 42% 14%;
+  --muted-foreground: 215 22% 60%;
+
+  --accent: 218 42% 14%;
+  --accent-foreground: 220 57% 97%;
+
+  --destructive: 0 72% 52%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 218 40% 17%;
+  --input: 218 40% 17%;
+  --ring: 191 100% 55%;
+
+  --card-border: 218 40% 19%;
+  --popover-border: 218 40% 19%;
+
+  /* Sidebar — deepest: #040810 */
+  --sidebar: 222 82% 5%;
+  --sidebar-foreground: 215 22% 80%;
+  --sidebar-border: 218 48% 11%;
+  --sidebar-primary: 191 100% 55%;
+  --sidebar-primary-foreground: 222 75% 6%;
+  --sidebar-accent: 218 48% 13%;
+  --sidebar-accent-foreground: 220 57% 97%;
+  --sidebar-ring: 191 100% 55%;
+
+  --app-font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --app-font-serif: Georgia, serif;
+  --app-font-mono: Menlo, monospace;
+  --radius: 0.5rem;
+
+  /* Chart: cyan · blue · growth-green · ember-orange · purple */
+  --chart-1: 191 100% 55%;
+  --chart-2: 213 74% 53%;
+  --chart-3: 120 57% 52%;
+  --chart-4: 27 100% 55%;
+  --chart-5: 280 65% 62%;
+
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --primary-border: hsl(var(--primary));
+  --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --secondary-border: hsl(var(--secondary));
+  --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --muted-border: hsl(var(--muted));
+  --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --accent-border: hsl(var(--accent));
+  --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --destructive-border: hsl(var(--destructive));
+  --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "kern" 1, "liga" 1, "cv11" 1;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  /* ── Depth shadows ─────────────────────────────────────────────────────────── */
+  .shadow-premium {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25), 0 4px 16px rgba(0,0,0,0.30), 0 16px 48px rgba(0,0,0,0.35);
+  }
+  .shadow-premium-hover {
+    box-shadow: 0 2px 6px rgba(0,0,0,0.30), 0 8px 28px rgba(0,0,0,0.38), 0 24px 64px rgba(0,0,0,0.42);
+  }
+
+  /* ── Forge brand glows ─────────────────────────────────────────────────────── */
+
+  /* Cyan halo — "Forge" wordmark colour */
+  .shadow-glow-primary {
+    box-shadow: 0 0 24px rgba(25,211,255,0.28), 0 0 64px rgba(25,211,255,0.10);
+  }
+  /* Forge button hover glow */
+  .shadow-glow-forge {
+    box-shadow:
+      0 0 0 1px rgba(25,211,255,0.35),
+      0 4px 20px rgba(25,211,255,0.28),
+      0 8px 48px rgba(43,133,228,0.18);
+  }
+  /* Ember glow — forge fire underneath the anvil */
+  .shadow-glow-ember {
+    box-shadow: 0 0 48px rgba(255,122,26,0.22), 0 0 120px rgba(255,122,26,0.08);
+  }
+
+  /* ── Forge gradient text (mirrors the "Forge" wordmark) ───────────────────── */
+  .text-forge {
+    background: linear-gradient(90deg, #2B85E4 0%, #19D3FF 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ── Forge gradient button fill ───────────────────────────────────────────── */
+  .btn-forge {
+    background: linear-gradient(135deg, #2B85E4 0%, #19D3FF 100%);
+    color: #060A14 !important;
+    font-weight: 700;
+    border: none;
+    transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 20px rgba(25,211,255,0.20), 0 1px 4px rgba(0,0,0,0.30);
+  }
+  .btn-forge:hover {
+    box-shadow:
+      0 0 0 1px rgba(25,211,255,0.40),
+      0 6px 28px rgba(25,211,255,0.32),
+      0 10px 48px rgba(43,133,228,0.20);
+    transform: translateY(-1px);
+    background: linear-gradient(135deg, #3391EE 0%, #26DBFF 100%);
+  }
+  .btn-forge:active {
+    transform: translateY(0);
+  }
+
+  /* ── Growth green (matches the growth arrow) ──────────────────────────────── */
+  .text-growth {
+    color: #3DD13D;
+  }
+
+  /* ── Card with forge atmosphere on hover ──────────────────────────────────── */
+  .card-hover-forge {
+    transition: box-shadow 0.22s ease, border-color 0.22s ease;
+  }
+  .card-hover-forge:hover {
+    box-shadow: 0 0 0 1px rgba(25,211,255,0.18), 0 8px 32px rgba(25,211,255,0.08);
+    border-color: rgba(25,211,255,0.22) !important;
+  }
+
+  /* ── Misc ─────────────────────────────────────────────────────────────────── */
+  .text-balance {
+    text-wrap: balance;
+  }
+  .transition-premium {
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+@layer utilities {
+  input[type="search"]::-webkit-search-cancel-button {
+    @apply hidden;
+  }
+
+  [contenteditable][data-placeholder]:empty::before {
+    content: attr(data-placeholder);
+    color: hsl(var(--muted-foreground));
+    pointer-events: none;
+  }
+
+  .no-default-hover-elevate {}
+  .no-default-active-elevate {}
+
+  .toggle-elevate::before,
+  .toggle-elevate-2::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0px;
+    border-radius: inherit;
+    z-index: -1;
+  }
+
+  .toggle-elevate.toggle-elevated::before {
+    background-color: var(--elevate-2);
+  }
+
+  .border.toggle-elevate::before {
+    inset: -1px;
+  }
+
+  .hover-elevate:not(.no-default-hover-elevate),
+  .active-elevate:not(.no-default-active-elevate),
+  .hover-elevate-2:not(.no-default-hover-elevate),
+  .active-elevate-2:not(.no-default-active-elevate) {
+    position: relative;
+    z-index: 0;
+  }
+
+  .hover-elevate:not(.no-default-hover-elevate)::after,
+  .active-elevate:not(.no-default-active-elevate)::after,
+  .hover-elevate-2:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:not(.no-default-active-elevate)::after {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0px;
+    border-radius: inherit;
+    z-index: 999;
+  }
+
+  .hover-elevate:hover:not(.no-default-hover-elevate)::after,
+  .active-elevate:active:not(.no-default-active-elevate)::after {
+    background-color: var(--elevate-1);
+  }
+
+  .hover-elevate-2:hover:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:active:not(.no-default-active-elevate)::after {
+    background-color: var(--elevate-2);
+  }
+
+  .border.hover-elevate:not(.no-hover-interaction-elevate)::after,
+  .border.active-elevate:not(.no-active-interaction-elevate)::after,
+  .border.hover-elevate-2:not(.no-hover-interaction-elevate)::after,
+  .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
+  .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
+    inset: -1px;
+  }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}

@@ -1,0 +1,61 @@
+Use the uploaded **LeadForge forge logo** as the primary brand logo across the website and make the full site design visually match it.
+
+**What to change**
+
+* Replace the current logo in the navbar, auth pages, dashboard header, browser tab icon area if applicable, and any brand sections with the uploaded forge logo.
+* Keep the logo centered and displayed cleanly with proper spacing.
+* Preserve a premium dark SaaS look that complements the logo instead of fighting it.
+
+**Design direction to match the logo**
+Build the site around the logo’s style:
+
+* Background: deep navy / near-black
+* Accent gradient: electric blue to cyan
+* Secondary glow: subtle forge orange / ember highlights
+* Text: white and soft gray
+* Buttons, cards, borders, hover states, and charts should all feel consistent with the logo
+
+**Visual style**
+
+* Modern, premium, high-converting SaaS
+* Dark glossy surfaces
+* Soft blue glow effects
+* Very subtle orange ember highlights only where it adds contrast
+* Clean spacing, rounded corners, sharp typography
+* Make it feel like the logo belongs naturally in the product
+
+**Specific UI updates**
+
+* Navbar should use the new logo with balanced padding and sizing
+* Sidebar, cards, and modals should use darker tones pulled from the logo background
+* Primary buttons should use a blue/cyan gradient inspired by the “Forge” text
+* Success/growth indicators can use a restrained green similar to the arrow
+* Avoid random colors that clash with the logo
+* Reduce any generic dashboard colors that don’t match the brand palette
+
+**Brand palette to use**
+
+* Background: #050816 / #081225 / #0B1020
+* Card/background surface: #10182B / #121D33
+* Primary gradient: #19D3FF to #1E63FF
+* White text: #F5F7FB
+* Secondary text: #A7B3C9
+* Ember accent: #FF7A1A / #FFB347
+* Growth green: #7CFF4F
+
+**Implementation details**
+
+* Store the uploaded logo in the project assets and reference it everywhere from one shared brand config/component
+* Create a reusable `Logo` component so the same branding is used sitewide
+* Update the theme tokens / CSS variables / Tailwind config so the whole site matches the logo automatically
+* Make sure the logo looks crisp on desktop and mobile
+* Keep the logo on dark backgrounds only unless you also create a light-background version
+
+**Goal**
+Make the website feel like it was designed around this exact logo from the start: premium, sharp, dark, modern, and cohesive.
+
+After making the change, show me:
+
+1. the updated navbar
+2. the updated dashboard/home page
+3. the exact files you changed

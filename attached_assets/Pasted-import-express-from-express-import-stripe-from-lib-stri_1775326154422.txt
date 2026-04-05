@@ -1,0 +1,191 @@
+import express from "express";
+import { stripe } from "../lib/stripe.js";
+import { prisma } from "../lib/prisma.js";
+import { requireUser } from "../middleware/requireUser.js";
+
+const router = express.Router();
+
+const APP_URL = process.env.APP_URL;
+
+const SUBSCRIPTION_PRICE_MAP = {
+  PRO: process.env.STRIPE_PRICE_PRO_MONTHLY,
+  AGENCY: process.env.STRIPE_PRICE_AGENCY_MONTHLY,
+};
+
+const TOPUP_PRICE_MAP = {
+  TOPUP_100: process.env.STRIPE_PRICE_TOPUP_100,
+  TOPUP_300: process.env.STRIPE_PRICE_TOPUP_300,
+  TOPUP_1000: process.env.STRIPE_PRICE_TOPUP_1000,
+};
+
+router.post("/create-subscription-checkout", requireUser, async (req, res, next) => {
+  try {
+    const { plan } = req.body;
+
+    if (!["PRO", "AGENCY"].includes(plan)) {
+      return res.status(400).json({ error: "Invalid plan" });
+    }
+
+    const price = SUBSCRIPTION_PRICE_MAP[plan];
+    if (!price) {
+      return res.status(500).json({ error: "Missing Stripe price ID" });
+    }
+
+    let customerId = req.user.stripeCustomerId;
+
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: req.user.email,
+        name: req.user.name || undefined,
+        metadata: {
+          userId: req.user.id,
+        },
+      });
+
+      customerId = customer.id;
+
+      await prisma.user.update({
+        where: { id: req.user.id },
+        data: { stripeCustomerId: customerId },
+      });
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer: customerId,
+      line_items: [
+        {
+          price,
+          quantity: 1,
+        },
+      ],
+      success_url: `${APP_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${APP_URL}/billing/cancel`,
+      metadata: {
+        userId: req.user.id,
+        plan,
+        type: "subscription",
+      },
+      allow_promotion_codes: true,
+    });
+
+    await prisma.checkoutSession.create({
+      data: {
+        userId: req.user.id,
+        stripeCheckoutSessionId: session.id,
+        mode: "subscription",
+        status: session.status || "open",
+      },
+    });
+
+    return res.json({ url: session.url });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/create-topup-checkout", requireUser, async (req, res, next) => {
+  try {
+    const { pack } = req.body;
+
+    if (!["TOPUP_100", "TOPUP_300", "TOPUP_1000"].includes(pack)) {
+      return res.status(400).json({ error: "Invalid top-up pack" });
+    }
+
+    const price = TOPUP_PRICE_MAP[pack];
+    if (!price) {
+      return res.status(500).json({ error: "Missing Stripe top-up price ID" });
+    }
+
+    let customerId = req.user.stripeCustomerId;
+
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: req.user.email,
+        name: req.user.name || undefined,
+        metadata: {
+          userId: req.user.id,
+        },
+      });
+
+      customerId = customer.id;
+
+      await prisma.user.update({
+        where: { id: req.user.id },
+        data: { stripeCustomerId: customerId },
+      });
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      customer: customerId,
+      line_items: [
+        {
+          price,
+          quantity: 1,
+        },
+      ],
+      success_url: `${APP_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${APP_URL}/billing/cancel`,
+      metadata: {
+        userId: req.user.id,
+        pack,
+        type: "topup",
+      },
+      allow_promotion_codes: true,
+    });
+
+    await prisma.checkoutSession.create({
+      data: {
+        userId: req.user.id,
+        stripeCheckoutSessionId: session.id,
+        mode: "payment",
+        status: session.status || "open",
+      },
+    });
+
+    return res.json({ url: session.url });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/me", requireUser, async (req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true,
+        email: true,
+        plan: true,
+        creditsRemaining: true,
+        creditsUsedThisMonth: true,
+        billingStatus: true,
+        currentPeriodEnd: true,
+      },
+    });
+
+    res.json(user);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/portal", requireUser, async (req, res, next) => {
+  try {
+    if (!req.user.stripeCustomerId) {
+      return res.status(400).json({ error: "No billing account found" });
+    }
+
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: req.user.stripeCustomerId,
+      return_url: `${APP_URL}/settings/billing`,
+    });
+
+    res.json({ url: portalSession.url });
+  } catch (err) {
+    next(err);
+  }
+});
+
+export default router;

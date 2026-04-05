@@ -1,0 +1,137 @@
+Build me a clean, modern web app for an AI ad video generator for local service businesses.
+
+Main idea:
+Users type in their business info and the app generates a short ad video concept for them. I want the first version focused on simple 15–30 second ad videos for businesses like painting companies, line painting, pressure washing, roofing, landscaping, and cleaning companies.
+
+Tech goals:
+
+* Build this as a real web app, not just a landing page
+* Make it clean, professional, and simple to use
+* Make it mobile friendly
+* Use a modern SaaS-style design
+* Use a dashboard layout after login
+* Use a landing page for non-logged-in users
+* Use a dark-on-light professional design, not cartoonish
+* Make the design look premium and trustworthy
+
+Core features for version 1:
+
+1. Landing page
+
+* headline
+* subheadline
+* call to action
+* features section
+* pricing section
+* login and signup buttons
+
+2. User authentication
+
+* email signup and login
+* protected dashboard
+
+3. Dashboard
+
+* form where user enters:
+
+  * business name
+  * business type
+  * city
+  * service offered
+  * target customer
+  * tone of ad
+  * call to action
+* button: Generate Ad
+
+4. Ad generation output
+   When the user clicks Generate Ad, create:
+
+* a short ad headline
+* a 15–30 second voiceover script
+* 5 scene breakdown ideas
+* on-screen text for each scene
+* a final call to action
+* a simple “video concept preview” layout on the page
+
+5. Saved projects
+
+* allow users to save ad projects
+* dashboard should show past projects
+
+6. Pricing page
+
+* Free plan
+* Pro plan
+* simple pricing cards
+
+Important:
+For now, do not build the actual expensive video rendering pipeline yet.
+For version 1, simulate the AI generation using structured mock output if needed, but organize the code so I can later connect:
+
+* OpenAI for script generation
+* ElevenLabs for voice
+* image generation API
+* FFmpeg or backend rendering pipeline
+
+Architecture:
+
+* Keep code organized and production-style
+* Separate frontend and backend logic cleanly
+* Prepare the project so APIs can be plugged in later
+* Use environment variables for future API keys
+* Include comments showing where AI services will be connected
+
+Backend/data:
+
+* Set up a database for users and saved projects
+* Each project should store:
+
+  * business info inputs
+  * generated ad output
+  * created date
+* Use a simple database solution that works well in Replit
+
+UI/style:
+
+* make it look like a real startup SaaS product
+* clean spacing
+* strong typography
+* rounded cards
+* simple icons if useful
+* easy to understand
+* premium and polished
+
+Extra helpful features:
+
+* loading state while generating
+* success/error messages
+* basic user settings page
+* logout button
+
+Pages wanted:
+
+* Home
+* Login
+* Signup
+* Dashboard
+* Pricing
+* Project detail page
+* Settings page
+
+Please generate:
+
+* the full app structure
+* all main pages
+* working navigation
+* authentication flow
+* database structure
+* saved projects system
+* mock AI generation logic
+* polished UI
+
+Also:
+
+* give me a clear README
+* explain how to run the app
+* explain where to add real AI APIs later
+* make the code easy for a beginner to understand and edit

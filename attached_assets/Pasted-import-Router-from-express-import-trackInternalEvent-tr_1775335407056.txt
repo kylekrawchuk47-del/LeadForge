@@ -1,0 +1,109 @@
+import { Router } from "express";
+import {
+  trackInternalEvent,
+  trackBusinessEvent,
+  getBusinessAnalyticsOverview,
+  getCampaignAnalytics,
+  getInternalAnalyticsSummary,
+} from "../services/analyticsService";
+
+const router = Router();
+
+// Replace with your real auth middleware
+function requireUser(req: any, res: any, next: any) {
+  if (!req.user) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  next();
+}
+
+router.post("/internal-event", requireUser, async (req, res, next) => {
+  try {
+    const { eventName, properties, businessProfileId } = req.body;
+
+    await trackInternalEvent({
+      userId: req.user.id,
+      businessProfileId: businessProfileId ?? null,
+      eventName,
+      properties,
+      source: "app",
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/business-event", async (req, res, next) => {
+  try {
+    const {
+      businessProfileId,
+      campaignId,
+      eventName,
+      source,
+      properties,
+      userId,
+    } = req.body;
+
+    await trackBusinessEvent({
+      userId: userId ?? null,
+      businessProfileId,
+      campaignId: campaignId ?? null,
+      eventName,
+      source,
+      properties,
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/business/:businessProfileId", requireUser, async (req, res, next) => {
+  try {
+    const { businessProfileId } = req.params;
+    const from = String(req.query.from);
+    const to = String(req.query.to);
+
+    const overview = await getBusinessAnalyticsOverview({
+      businessProfileId,
+      from,
+      to,
+    });
+
+    const campaigns = await getCampaignAnalytics({
+      businessProfileId,
+      from,
+      to,
+    });
+
+    res.json({
+      overview,
+      campaigns,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/internal-summary", requireUser, async (req, res, next) => {
+  try {
+    // Replace with real admin guard
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const from = new Date(String(req.query.from));
+    const to = new Date(String(req.query.to));
+
+    const summary = await getInternalAnalyticsSummary({ from, to });
+
+    res.json(summary);
+  } catch (err) {
+    next(err);
+  }
+});
+
+export default router;

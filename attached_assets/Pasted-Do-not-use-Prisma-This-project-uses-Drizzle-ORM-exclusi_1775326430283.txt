@@ -1,0 +1,128 @@
+Do not use Prisma.
+
+This project uses Drizzle ORM exclusively, and all database access must go through @workspace/db.
+
+Please rebuild the Stripe billing + credit system for LeadForge using:
+- Drizzle ORM only
+- the existing db client from @workspace/db
+- existing exported table schemas from @workspace/db
+- the current project structure and conventions
+
+GOAL:
+Implement a credit-based subscription billing system for LeadForge using Stripe, with no Prisma dependencies.
+
+REQUIREMENTS:
+
+1. Use Drizzle only
+- import the db client from @workspace/db
+- import and use the existing table schemas from @workspace/db
+- if new tables are needed, define them in the existing schema structure using Drizzle
+- create proper migrations using the project’s existing migration workflow
+
+2. Add or update database tables needed for billing
+We need support for:
+- user plan
+- credits remaining
+- credits used this month
+- Stripe customer ID
+- Stripe subscription ID
+- billing status
+- billing renewal date
+- credit transactions
+- checkout session tracking
+
+If these fields/tables already exist, extend them safely.
+If they do not exist, create them with Drizzle schema and migrations.
+
+Suggested data model:
+
+Users table additions:
+- plan
+- creditsRemaining
+- creditsUsedThisMonth
+- stripeCustomerId
+- stripeSubscriptionId
+- billingStatus
+- currentPeriodEnd
+
+Credit transactions table:
+- id
+- userId
+- amount
+- type
+- description
+- createdAt
+
+Checkout sessions table:
+- id
+- userId
+- stripeCheckoutSessionId
+- mode
+- status
+- createdAt
+
+3. Credit system
+Implement these credit rules:
+
+- Full campaign generation = 5 credits
+- Ad generation = 2 credits
+- Landing page generation = 2 credits
+- Email campaign generation = 2 credits
+- SMS follow-up = 1 credit
+
+Plan limits:
+- Free = 20 credits lifetime
+- Pro = 200 credits/month
+- Agency = 700 credits/month
+
+Top-up packs:
+- 100 credits
+- 300 credits
+- 1000 credits
+
+4. Stripe integration
+Implement Stripe Checkout and Stripe Billing using the project’s backend stack.
+
+Features needed:
+- create subscription checkout session for Pro
+- create subscription checkout session for Agency
+- create one-time checkout session for credit top-ups
+- Stripe webhook handler
+- update user plan after successful subscription
+- add credits after successful top-up
+- monthly credit reset when subscription renews
+- billing portal session for managing subscription
+
+5. Routes / handlers
+Add backend endpoints for:
+- create subscription checkout
+- create top-up checkout
+- get current billing info
+- create billing portal session
+- Stripe webhook endpoint
+
+6. Credit usage enforcement
+Wherever campaign/content generation happens, enforce credits before generation.
+If user does not have enough credits:
+- block the action
+- return a clear upgrade / top-up response
+
+7. Frontend integration
+Update the frontend to:
+- show current plan
+- show remaining credits
+- show credits used this month
+- show estimated campaigns remaining
+- show upgrade buttons
+- show credit pack purchase buttons
+- show billing management button
+
+8. Important implementation rules
+- do not introduce Prisma
+- do not create a second DB access layer
+- do not bypass @workspace/db
+- follow the current project’s patterns and file structure
+- use TypeScript if the project is using TypeScript
+- keep the implementation production-ready and clean
+
+Please inspect the existing codebase first, then implement this using the current Drizzle schema and app architecture rather than creating a parallel system.

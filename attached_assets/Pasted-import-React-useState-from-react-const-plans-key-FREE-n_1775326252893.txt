@@ -1,0 +1,124 @@
+import React, { useState } from "react";
+
+const plans = [
+  {
+    key: "FREE",
+    name: "Free",
+    price: "$0",
+    subtitle: "Try LeadForge",
+    campaigns: "Up to 4 starter campaigns",
+    features: [
+      "20 lifetime credits",
+      "Basic ad generation",
+      "Basic exports",
+      "Great for testing",
+    ],
+    cta: "Get Started",
+  },
+  {
+    key: "PRO",
+    name: "Pro",
+    price: "$29",
+    subtitle: "per month",
+    campaigns: "Up to 40 full campaigns / month",
+    features: [
+      "200 credits every month",
+      "Ads + landing pages + email campaigns",
+      "Lead capture forms",
+      "Contact management",
+      "Full exports",
+    ],
+    cta: "Upgrade to Pro",
+    popular: true,
+  },
+  {
+    key: "AGENCY",
+    name: "Agency",
+    price: "$79",
+    subtitle: "per month",
+    campaigns: "Up to 140 full campaigns / month",
+    features: [
+      "700 credits every month",
+      "Everything in Pro",
+      "Multiple business profiles",
+      "Advanced lead tracking",
+      "Higher usage capacity",
+    ],
+    cta: "Upgrade to Agency",
+  },
+];
+
+export default function PricingCards({ userId }) {
+  const [loadingPlan, setLoadingPlan] = useState(null);
+
+  const startCheckout = async (plan) => {
+    try {
+      setLoadingPlan(plan);
+      const res = await fetch("/api/billing/create-subscription-checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": userId,
+        },
+        body: JSON.stringify({ plan }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Checkout failed");
+
+      window.location.href = data.url;
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setLoadingPlan(null);
+    }
+  };
+
+  return (
+    <div className="grid gap-6 md:grid-cols-3">
+      {plans.map((plan) => (
+        <div
+          key={plan.key}
+          className={`rounded-2xl border bg-white p-6 shadow-sm ${
+            plan.popular ? "border-blue-900 ring-2 ring-blue-900/10" : "border-slate-200"
+          }`}
+        >
+          {plan.popular && (
+            <div className="mb-4 inline-block rounded-full bg-blue-900 px-3 py-1 text-xs font-semibold text-white">
+              Most Popular
+            </div>
+          )}
+
+          <h3 className="text-2xl font-bold text-slate-900">{plan.name}</h3>
+          <div className="mt-2 flex items-end gap-2">
+            <span className="text-4xl font-bold text-slate-900">{plan.price}</span>
+            <span className="pb-1 text-sm text-slate-500">{plan.subtitle}</span>
+          </div>
+
+          <p className="mt-4 text-sm font-medium text-blue-900">{plan.campaigns}</p>
+
+          <ul className="mt-6 space-y-3 text-sm text-slate-600">
+            {plan.features.map((feature) => (
+              <li key={feature}>• {feature}</li>
+            ))}
+          </ul>
+
+          <button
+            onClick={() => {
+              if (plan.key === "FREE") return;
+              startCheckout(plan.key);
+            }}
+            disabled={loadingPlan === plan.key}
+            className={`mt-8 w-full rounded-xl px-4 py-3 font-semibold ${
+              plan.key === "FREE"
+                ? "bg-slate-100 text-slate-600"
+                : "bg-blue-900 text-white hover:bg-blue-800"
+            }`}
+          >
+            {loadingPlan === plan.key ? "Redirecting..." : plan.cta}
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}

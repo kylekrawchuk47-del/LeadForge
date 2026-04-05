@@ -1,0 +1,225 @@
+Update my app’s billing, pricing, plan access, AI image trial, feature gating, Stripe mapping, and usage enforcement with the exact requirements below.
+
+==================================================
+OBJECTIVE
+==================================================
+
+I want to change my subscription system to this:
+
+Plans:
+- free
+- pro
+- agency
+- full_access
+
+Pricing:
+- free = $0/month
+- pro = keep current price if already set, otherwise set to $29/month
+- agency = $69/month
+- full_access = $99/month
+
+Business logic goals:
+1. Free users get 1 lifetime AI image generation trial.
+2. Agency plan price must be changed to $69/month.
+3. Add a new $99/month full_access plan with access to all tools.
+4. Keep usage caps high but NOT unlimited, so margins stay strong.
+5. Enforce everything on the backend.
+6. Update frontend pricing cards and upgrade modals.
+7. Centralize plan config so pricing/limits are not scattered around the app.
+
+==================================================
+PLAN ENTITLEMENTS
+==================================================
+
+Use these exact plan entitlements:
+
+free:
+- aiImageTrialGenerations: 1
+- aiAdCreatorAccess: false
+- aiFlyerAccess: false
+- logoGeneratorAccess: false
+- socialPostGeneratorAccess: false
+- premiumTemplates: false
+- monthlyImageGenerations: 0
+- monthlyRefinements: 0
+- exportsPerMonth: 3
+- adPlatformIntegrations: false
+
+pro:
+- aiImageTrialGenerations: 0
+- aiAdCreatorAccess: true
+- aiFlyerAccess: true
+- logoGeneratorAccess: true
+- socialPostGeneratorAccess: true
+- premiumTemplates: false
+- monthlyImageGenerations: 40
+- monthlyRefinements: 80
+- exportsPerMonth: 40
+- adPlatformIntegrations: false
+
+agency:
+- aiImageTrialGenerations: 0
+- aiAdCreatorAccess: true
+- aiFlyerAccess: true
+- logoGeneratorAccess: true
+- socialPostGeneratorAccess: true
+- premiumTemplates: true
+- monthlyImageGenerations: 120
+- monthlyRefinements: 240
+- exportsPerMonth: 120
+- adPlatformIntegrations: true
+- teamSeats: 3
+
+full_access:
+- aiImageTrialGenerations: 0
+- aiAdCreatorAccess: true
+- aiFlyerAccess: true
+- logoGeneratorAccess: true
+- socialPostGeneratorAccess: true
+- premiumTemplates: true
+- monthlyImageGenerations: 300
+- monthlyRefinements: 600
+- exportsPerMonth: 300
+- adPlatformIntegrations: true
+- teamSeats: 10
+- allToolsAccess: true
+- priorityAccess: true
+
+IMPORTANT:
+- Do NOT describe any paid plan as “unlimited”
+- In the UI say “full access to all tools” and “high monthly usage included”
+
+==================================================
+IMPLEMENTATION REQUIREMENTS
+==================================================
+
+Please make the code changes directly in the existing app and update all impacted files.
+
+You must:
+
+1. Create or update a centralized billing/plans config file.
+2. Create plan entitlement helpers.
+3. Create backend guards for:
+   - feature access
+   - free trial image usage
+   - monthly image generation quotas
+   - monthly refinement quotas
+   - monthly export quotas
+4. Update image generation endpoints so free users get exactly 1 lifetime trial image generation.
+5. After the trial is used, free users must get a 403 with an upgrade message.
+6. Paid plans must be checked against monthly usage limits.
+7. full_access must still respect fair-use caps.
+8. Update Stripe price mappings and webhook plan assignment.
+9. Update pricing page/cards and upgrade modals.
+10. Add usage tracking fields and reset logic.
+11. Keep the default image generation model cost-conscious.
+
+==================================================
+FILES TO CREATE OR UPDATE
+==================================================
+
+Create or update files similar to:
+
+src/lib/billing/plans.ts
+src/lib/billing/entitlements.ts
+src/server/lib/plan-guards.ts
+src/server/lib/usage.ts
+src/server/lib/ai/image-config.ts
+src/server/lib/stripe/price-map.ts
+
+Also update:
+- pricing page UI
+- checkout flow
+- Stripe webhook handler
+- users schema / database model
+- any API routes for flyer/poster/logo/social image generation
+- any refine/export endpoints tied to these tools
+
+Use the existing project structure if file paths differ.
+
+==================================================
+CODE TO IMPLEMENT
+==================================================
+
+Create or update a central plan config with this exact logic:
+
+```ts
+export type UserPlan = "free" | "pro" | "agency" | "full_access";
+
+export type PlanEntitlements = {
+  aiImageTrialGenerations: number;
+  aiAdCreatorAccess: boolean;
+  aiFlyerAccess: boolean;
+  logoGeneratorAccess: boolean;
+  socialPostGeneratorAccess: boolean;
+  premiumTemplates: boolean;
+  monthlyImageGenerations: number | null;
+  monthlyRefinements: number | null;
+  exportsPerMonth: number | null;
+  adPlatformIntegrations: boolean;
+  teamSeats?: number;
+  allToolsAccess?: boolean;
+  priorityAccess?: boolean;
+};
+
+export const PLAN_PRICES = {
+  free: 0,
+  pro: 29,
+  agency: 69,
+  full_access: 99,
+} as const;
+
+export const PLAN_ENTITLEMENTS: Record<UserPlan, PlanEntitlements> = {
+  free: {
+    aiImageTrialGenerations: 1,
+    aiAdCreatorAccess: false,
+    aiFlyerAccess: false,
+    logoGeneratorAccess: false,
+    socialPostGeneratorAccess: false,
+    premiumTemplates: false,
+    monthlyImageGenerations: 0,
+    monthlyRefinements: 0,
+    exportsPerMonth: 3,
+    adPlatformIntegrations: false,
+  },
+  pro: {
+    aiImageTrialGenerations: 0,
+    aiAdCreatorAccess: true,
+    aiFlyerAccess: true,
+    logoGeneratorAccess: true,
+    socialPostGeneratorAccess: true,
+    premiumTemplates: false,
+    monthlyImageGenerations: 40,
+    monthlyRefinements: 80,
+    exportsPerMonth: 40,
+    adPlatformIntegrations: false,
+  },
+  agency: {
+    aiImageTrialGenerations: 0,
+    aiAdCreatorAccess: true,
+    aiFlyerAccess: true,
+    logoGeneratorAccess: true,
+    socialPostGeneratorAccess: true,
+    premiumTemplates: true,
+    monthlyImageGenerations: 120,
+    monthlyRefinements: 240,
+    exportsPerMonth: 120,
+    adPlatformIntegrations: true,
+    teamSeats: 3,
+  },
+  full_access: {
+    aiImageTrialGenerations: 0,
+    aiAdCreatorAccess: true,
+    aiFlyerAccess: true,
+    logoGeneratorAccess: true,
+    socialPostGeneratorAccess: true,
+    premiumTemplates: true,
+    monthlyImageGenerations: 300,
+    monthlyRefinements: 600,
+    exportsPerMonth: 300,
+    adPlatformIntegrations: true,
+    teamSeats: 10,
+    allToolsAccess: true,
+    priorityAccess: true,
+  },
+};

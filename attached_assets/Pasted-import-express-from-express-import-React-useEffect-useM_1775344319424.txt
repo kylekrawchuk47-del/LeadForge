@@ -1,0 +1,627 @@
+import express from "express";
+import React, { useEffect, useMemo, useState } from "react";
+
+/**
+ * LeadForge Plan Gating + Social Showcase Starter
+ *
+ * What this file includes:
+ * - backend middleware to block free users from ad-platform features
+ * - backend routes for connecting Instagram/Facebook Pages
+ * - starter social media post sync route
+ * - backend route to expose a user's showcase feed inside the app
+ * - frontend React components for:
+ *   - locked ads card for free users
+ *   - upgrade CTA
+ *   - social connect card
+ *   - showcase gallery section
+ *
+ * This is a starter file. Split it into backend/frontend files in your real app.
+ *
+ * Required env vars:
+ * APP_URL=
+ * META_APP_ID=
+ * META_APP_SECRET=
+ * META_REDIRECT_URI=
+ * META_API_VERSION=v25.0
+ */
+
+// ==================================================
+// Shared types
+// ==================================================
+
+type PlanTier = "free" | "pro" | "business";
+type Platform = "facebook" | "instagram";
+
+type UserRecord = {
+  id: string;
+  email?: string;
+  plan: PlanTier;
+  businessName?: string;
+};
+
+type SocialConnection = {
+  id: string;
+  userId: string;
+  platform: Platform;
+  accountId: string;
+  username: string | null;
+  displayName: string | null;
+  encryptedAccessToken: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ShowcasePost = {
+  id: string;
+  userId: string;
+  platform: Platform;
+  socialConnectionId: string;
+  externalPostId: string;
+  caption: string | null;
+  mediaType: string | null;
+  mediaUrl: string | null;
+  permalink: string | null;
+  thumbnailUrl: string | null;
+  timestamp: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// ==================================================
+// Fake backend DB
+// Replace with your real DB layer
+// ==================================================
+
+const fakeUsers = new Map<string, UserRecord>();
+const fakeSocialConnections = new Map<string, SocialConnection>();
+const fakeShowcasePosts = new Map<string, ShowcasePost>();
+
+fakeUsers.set("demo-free", { id: "demo-free", plan: "free", businessName: "Demo Painting" });
+fakeUsers.set("demo-pro", { id: "demo-pro", plan: "pro", businessName: "Pro Painting Co." });
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function socialKey(userId: string, platform: Platform) {
+  return `${userId}:${platform}`;
+}
+
+async function getUserById(userId: string) {
+  return fakeUsers.get(userId) || null;
+}
+
+async function upsertSocialConnection(input: Omit<SocialConnection, "id" | "createdAt" | "updatedAt">) {
+  const key = socialKey(input.userId, input.platform);
+  const existing = fakeSocialConnections.get(key);
+  const row: SocialConnection = {
+    id: existing?.id || crypto.randomUUID(),
+    createdAt: existing?.createdAt || nowIso(),
+    updatedAt: nowIso(),
+    ...input,
+  };
+  fakeSocialConnections.set(key, row);
+  return row;
+}
+
+async function getSocialConnection(userId: string, platform: Platform) {
+  return fakeSocialConnections.get(socialKey(userId, platform)) || null;
+}
+
+async function replaceShowcasePosts(userId: string, platform: Platform, socialConnectionId: string, posts: Omit<ShowcasePost, "id" | "userId" | "platform" | "socialConnectionId" | "createdAt" | "updatedAt">[]) {
+  for (const [id, post] of fakeShowcasePosts.entries()) {
+    if (post.userId === userId && post.platform === platform) {
+      fakeShowcasePosts.delete(id);
+    }
+  }
+
+  for (const post of posts) {
+    const row: ShowcasePost = {
+      id: crypto.randomUUID(),
+      userId,
+      platform,
+      socialConnectionId,
+      externalPostId: post.externalPostId,
+      caption: post.caption,
+      mediaType: post.mediaType,
+      mediaUrl: post.mediaUrl,
+      permalink: post.permalink,
+      thumbnailUrl: post.thumbnailUrl,
+      timestamp: post.timestamp,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    fakeShowcasePosts.set(row.id, row);
+  }
+}
+
+async function listShowcasePosts(userId: string) {
+  return [...fakeShowcasePosts.values()]
+    .filter((p) => p.userId === userId)
+    .sort((a, b) => String(b.timestamp || "").localeCompare(String(a.timestamp || "")));
+}
+
+// ==================================================
+// Minimal crypto helpers
+// Replace with your existing secure helpers
+// ==================================================
+
+import crypto from "crypto";
+
+const ENCRYPTION_KEY = crypto.createHash("sha256").update(process.env.ADS_TOKEN_ENCRYPTION_KEY || "dev-only-key").digest();
+
+function encryptSecret(plainText: string): string {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", ENCRYPTION_KEY, iv);
+  const encrypted = Buffer.concat([cipher.update(plainText, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return [iv, tag, encrypted].map((p) => p.toString("base64")).join(".");
+}
+
+function decryptSecret(payload: string): string {
+  const [ivB64, tagB64, encryptedB64] = payload.split(".");
+  const iv = Buffer.from(ivB64, "base64");
+  const tag = Buffer.from(tagB64, "base64");
+  const encrypted = Buffer.from(encryptedB64, "base64");
+  const decipher = crypto.createDecipheriv("aes-256-gcm", ENCRYPTION_KEY, iv);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString("utf8");
+}
+
+// ==================================================
+// Backend helpers
+// ==================================================
+
+function env(name: string, fallback?: string) {
+  const value = process.env[name] ?? fallback;
+  if (!value) throw new Error(`Missing env var: ${name}`);
+  return value;
+}
+
+function qs(params: Record<string, string | number | undefined>) {
+  const out = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined) out.set(k, String(v));
+  }
+  return out.toString();
+}
+
+async function http<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
+  const text = await res.text();
+  let json: any = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = text;
+  }
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} ${res.statusText}: ${typeof json === "string" ? json : JSON.stringify(json)}`);
+  }
+  return json as T;
+}
+
+const META_APP_ID = env("META_APP_ID", "demo-meta-app-id");
+const META_APP_SECRET = env("META_APP_SECRET", "demo-meta-secret");
+const META_REDIRECT_URI = env("META_REDIRECT_URI", "http://localhost:3000/api/social/meta/callback");
+const META_API_VERSION = env("META_API_VERSION", "v25.0");
+const APP_URL = env("APP_URL", "http://localhost:3000");
+
+function buildMetaSocialAuthUrl(state: string) {
+  return `https://www.facebook.com/${META_API_VERSION}/dialog/oauth?${qs({
+    client_id: META_APP_ID,
+    redirect_uri: META_REDIRECT_URI,
+    state,
+    response_type: "code",
+    scope: "pages_show_list,instagram_basic,instagram_manage_insights,business_management,pages_read_engagement",
+  })}`;
+}
+
+async function exchangeMetaCodeForToken(code: string) {
+  return http<any>(`https://graph.facebook.com/${META_API_VERSION}/oauth/access_token?${qs({
+    client_id: META_APP_ID,
+    client_secret: META_APP_SECRET,
+    redirect_uri: META_REDIRECT_URI,
+    code,
+  })}`);
+}
+
+async function listFacebookPages(accessToken: string) {
+  return http<any>(`https://graph.facebook.com/${META_API_VERSION}/me/accounts?${qs({
+    access_token: accessToken,
+    fields: "id,name,access_token,instagram_business_account{id,username,name}",
+  })}`);
+}
+
+async function fetchInstagramMedia(instagramBusinessId: string, pageAccessToken: string) {
+  return http<any>(`https://graph.facebook.com/${META_API_VERSION}/${instagramBusinessId}/media?${qs({
+    fields: "id,caption,media_type,media_url,permalink,thumbnail_url,timestamp",
+    access_token: pageAccessToken,
+  })}`);
+}
+
+// ==================================================
+// Backend app + middleware
+// ==================================================
+
+const app = express();
+app.use(express.json());
+
+async function requirePaidPlan(req: express.Request, res: express.Response, next: express.NextFunction) {
+  try {
+    const userId = String(req.headers["x-user-id"] || req.query.userId || req.body.userId || "");
+    if (!userId) {
+      return res.status(401).json({ error: "Missing user id" });
+    }
+
+    const user = await getUserById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (user.plan === "free") {
+      return res.status(403).json({
+        error: "This feature is only available on paid plans.",
+        code: "PLAN_UPGRADE_REQUIRED",
+        upgradeTarget: "pro",
+      });
+    }
+
+    (req as any).leadforgeUser = user;
+    next();
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Unexpected error" });
+  }
+}
+
+app.get("/api/ads/feature-access", async (req, res) => {
+  try {
+    const userId = String(req.query.userId || "");
+    if (!userId) throw new Error("Missing userId");
+    const user = await getUserById(userId);
+    if (!user) throw new Error("User not found");
+
+    res.json({
+      ok: true,
+      userId,
+      plan: user.plan,
+      adsUnlocked: user.plan !== "free",
+      socialShowcaseUnlocked: true,
+    });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Gate all ad platform actions behind paid plan
+app.post("/api/ads/:platform/campaigns", requirePaidPlan, async (_req, res) => {
+  res.json({ ok: true, message: "Paid ad-platform action allowed" });
+});
+
+app.get("/api/ads/:platform/reports", requirePaidPlan, async (_req, res) => {
+  res.json({ ok: true, rows: [] });
+});
+
+app.get("/api/ads/:platform/auth-url", requirePaidPlan, async (req, res) => {
+  res.json({ ok: true, message: `Paid user can connect ${req.params.platform}` });
+});
+
+// ==================================================
+// Social connect + sync routes
+// ==================================================
+
+app.get("/api/social/meta/auth-url", async (req, res) => {
+  try {
+    const userId = String(req.query.userId || "");
+    if (!userId) throw new Error("Missing userId");
+
+    const state = Buffer.from(JSON.stringify({ userId, ts: Date.now() })).toString("base64url");
+    const url = buildMetaSocialAuthUrl(state);
+    res.json({ ok: true, url, state });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.get("/api/social/meta/callback", async (req, res) => {
+  try {
+    const code = String(req.query.code || "");
+    const state = String(req.query.state || "");
+    if (!code) throw new Error("Missing code");
+    if (!state) throw new Error("Missing state");
+
+    const parsed = JSON.parse(Buffer.from(state, "base64url").toString("utf8")) as { userId: string };
+    if (!parsed.userId) throw new Error("Invalid state");
+
+    const tokenJson = await exchangeMetaCodeForToken(code);
+    const userAccessToken = String(tokenJson.access_token || "");
+    if (!userAccessToken) throw new Error("Failed to get access token");
+
+    const pages = await listFacebookPages(userAccessToken);
+    const firstPage = Array.isArray(pages?.data) ? pages.data[0] : null;
+    if (!firstPage) throw new Error("No Facebook Page found. Connect a Facebook Page linked to Instagram.");
+
+    const instagramBusiness = firstPage.instagram_business_account || null;
+    const platform: Platform = instagramBusiness ? "instagram" : "facebook";
+    const accountId = String(instagramBusiness?.id || firstPage.id);
+    const username = instagramBusiness?.username || null;
+    const displayName = instagramBusiness?.name || firstPage.name || null;
+    const pageAccessToken = String(firstPage.access_token || userAccessToken);
+
+    await upsertSocialConnection({
+      userId: parsed.userId,
+      platform,
+      accountId,
+      username,
+      displayName,
+      encryptedAccessToken: encryptSecret(pageAccessToken),
+    });
+
+    const redirectUrl = new URL("/dashboard/showcase", APP_URL);
+    redirectUrl.searchParams.set("social_connected", platform);
+    redirectUrl.searchParams.set("ok", "1");
+    res.redirect(redirectUrl.toString());
+  } catch (error: any) {
+    const failUrl = new URL("/dashboard/showcase", APP_URL);
+    failUrl.searchParams.set("ok", "0");
+    failUrl.searchParams.set("error", error.message);
+    res.redirect(failUrl.toString());
+  }
+});
+
+app.post("/api/social/sync", async (req, res) => {
+  try {
+    const userId = String(req.body.userId || "");
+    const platform = String(req.body.platform || "instagram") as Platform;
+    if (!userId) throw new Error("Missing userId");
+
+    const connection = await getSocialConnection(userId, platform);
+    if (!connection) throw new Error(`No ${platform} social connection found`);
+
+    const accessToken = decryptSecret(connection.encryptedAccessToken);
+
+    if (platform === "instagram") {
+      const media = await fetchInstagramMedia(connection.accountId, accessToken);
+      const posts = (Array.isArray(media?.data) ? media.data : []).map((m: any) => ({
+        externalPostId: String(m.id),
+        caption: m.caption || null,
+        mediaType: m.media_type || null,
+        mediaUrl: m.media_url || null,
+        permalink: m.permalink || null,
+        thumbnailUrl: m.thumbnail_url || null,
+        timestamp: m.timestamp || null,
+      }));
+
+      await replaceShowcasePosts(userId, platform, connection.id, posts);
+    }
+
+    res.json({ ok: true, message: "Showcase synced successfully" });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.get("/api/showcase", async (req, res) => {
+  try {
+    const userId = String(req.query.userId || "");
+    if (!userId) throw new Error("Missing userId");
+
+    const user = await getUserById(userId);
+    if (!user) throw new Error("User not found");
+
+    const posts = await listShowcasePosts(userId);
+    res.json({
+      ok: true,
+      businessName: user.businessName || null,
+      posts,
+    });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// ==================================================
+// SQL schema examples
+// ==================================================
+
+export const SQL_SCHEMA_EXAMPLE = `
+CREATE TABLE social_connections (
+  id UUID PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  platform TEXT NOT NULL CHECK (platform IN ('facebook', 'instagram')),
+  account_id TEXT NOT NULL,
+  username TEXT NULL,
+  display_name TEXT NULL,
+  encrypted_access_token TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, platform)
+);
+
+CREATE TABLE showcase_posts (
+  id UUID PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  platform TEXT NOT NULL CHECK (platform IN ('facebook', 'instagram')),
+  social_connection_id UUID NOT NULL,
+  external_post_id TEXT NOT NULL,
+  caption TEXT NULL,
+  media_type TEXT NULL,
+  media_url TEXT NULL,
+  permalink TEXT NULL,
+  thumbnail_url TEXT NULL,
+  timestamp TIMESTAMPTZ NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+`;
+
+// ==================================================
+// Frontend components
+// ==================================================
+
+export function LockedAdsFeatureCard(props: { plan: PlanTier; onUpgrade: () => void }) {
+  const locked = props.plan === "free";
+
+  return (
+    <div style={{ background: "#fff", border: "1px solid #e7e7e7", borderRadius: 18, padding: 20 }}>
+      <h3 style={{ marginTop: 0 }}>Ad Platform Connections</h3>
+      <p style={{ color: "#666", lineHeight: 1.5 }}>
+        Connect Meta Ads and Google Ads, launch campaigns, and track results inside LeadForge.
+      </p>
+
+      {locked ? (
+        <div style={{ background: "#faf6e8", border: "1px solid #eadfb3", borderRadius: 14, padding: 16 }}>
+          <div style={{ fontWeight: 800, marginBottom: 8 }}>Paid plans only</div>
+          <div style={{ color: "#6d5b19", marginBottom: 12 }}>
+            Upgrade to Pro to unlock Meta Ads, Google Ads, reporting, and campaign management.
+          </div>
+          <button onClick={props.onUpgrade} style={{ border: "none", borderRadius: 12, padding: "12px 14px", fontWeight: 700, cursor: "pointer" }}>
+            Upgrade to Pro
+          </button>
+        </div>
+      ) : (
+        <div style={{ background: "#f4fbf5", border: "1px solid #cfe7d3", borderRadius: 14, padding: 16, color: "#215c2c" }}>
+          Your plan includes ad platform connections.
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function SocialShowcaseCard(props: { userId: string }) {
+  const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [posts, setPosts] = useState<any[]>([]);
+  const [businessName, setBusinessName] = useState<string | null>(null);
+
+  async function connectInstagram() {
+    setMessage(null);
+    const res = await fetch(`/api/social/meta/auth-url?userId=${encodeURIComponent(props.userId)}`);
+    const json = await res.json();
+    if (!res.ok) {
+      setMessage(json.error || "Failed to start social connection");
+      return;
+    }
+    window.location.href = json.url;
+  }
+
+  async function loadShowcase() {
+    setLoading(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/showcase?userId=${encodeURIComponent(props.userId)}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to load showcase");
+      setPosts(json.posts || []);
+      setBusinessName(json.businessName || null);
+    } catch (error: any) {
+      setMessage(error.message || "Failed to load showcase");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function syncShowcase() {
+    setSyncing(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/social/sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: props.userId, platform: "instagram" }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to sync showcase");
+      setMessage("Showcase synced");
+      await loadShowcase();
+    } catch (error: any) {
+      setMessage(error.message || "Failed to sync showcase");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  useEffect(() => {
+    loadShowcase();
+  }, []);
+
+  return (
+    <div style={{ background: "#fff", border: "1px solid #e7e7e7", borderRadius: 18, padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <h3 style={{ marginTop: 0, marginBottom: 6 }}>Showcase Your Work</h3>
+          <p style={{ color: "#666", margin: 0 }}>
+            Link your social media account and pull your best work into your LeadForge profile.
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={connectInstagram} style={{ border: "none", borderRadius: 12, padding: "12px 14px", fontWeight: 700, cursor: "pointer" }}>
+            Connect Instagram
+          </button>
+          <button onClick={syncShowcase} disabled={syncing} style={{ border: "1px solid #ddd", background: "#fff", borderRadius: 12, padding: "12px 14px", fontWeight: 700, cursor: "pointer" }}>
+            {syncing ? "Syncing..." : "Sync Posts"}
+          </button>
+        </div>
+      </div>
+
+      {message && <div style={{ marginTop: 14, color: "#555" }}>{message}</div>}
+
+      <div style={{ marginTop: 18 }}>
+        <div style={{ fontWeight: 700, marginBottom: 10 }}>{businessName || "Your Showcase"}</div>
+
+        {loading ? (
+          <div style={{ color: "#666" }}>Loading showcase...</div>
+        ) : posts.length === 0 ? (
+          <div style={{ color: "#666" }}>No showcase posts yet. Connect Instagram and sync your work.</div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
+            {posts.map((post) => (
+              <a
+                key={post.id}
+                href={post.permalink || "#"}
+                target="_blank"
+                rel="noreferrer"
+                style={{ textDecoration: "none", color: "inherit", border: "1px solid #eee", borderRadius: 16, overflow: "hidden", background: "#fff" }}
+              >
+                {post.mediaUrl ? (
+                  <img src={post.mediaUrl} alt={post.caption || "Showcase post"} style={{ width: "100%", height: 220, objectFit: "cover", display: "block" }} />
+                ) : (
+                  <div style={{ height: 220, display: "grid", placeItems: "center", background: "#f5f5f5", color: "#777" }}>No image</div>
+                )}
+                <div style={{ padding: 12 }}>
+                  <div style={{ fontSize: 12, color: "#777", marginBottom: 8, textTransform: "capitalize" }}>{post.platform}</div>
+                  <div style={{ fontSize: 14, lineHeight: 1.4 }}>
+                    {post.caption ? String(post.caption).slice(0, 120) : "View post"}
+                  </div>
+                </div>
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function MarketingAccessSection(props: { userId: string; plan: PlanTier; onUpgrade: () => void }) {
+  return (
+    <div style={{ display: "grid", gap: 18 }}>
+      <LockedAdsFeatureCard plan={props.plan} onUpgrade={props.onUpgrade} />
+      <SocialShowcaseCard userId={props.userId} />
+    </div>
+  );
+}
+
+// ==================================================
+// Local boot
+// ==================================================
+
+if (require.main === module) {
+  const port = Number(process.env.PORT || 3003);
+  app.listen(port, () => {
+    console.log(`Plan gating + social showcase starter running on http://localhost:${port}`);
+  });
+}
+
+export default app;

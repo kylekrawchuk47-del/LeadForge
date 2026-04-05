@@ -1,0 +1,569 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: AdCraft AI Ad Video Generator API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: projects
+    description: Ad project operations
+  - name: users
+    description: User operations
+  - name: admin
+    description: Admin-only operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /projects:
+    get:
+      operationId: listProjects
+      tags: [projects]
+      summary: List user's projects
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Project"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: createProject
+      tags: [projects]
+      summary: Create a new ad project
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProjectBody"
+      responses:
+        "201":
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+
+  /projects/{projectId}:
+    get:
+      operationId: getProject
+      tags: [projects]
+      summary: Get a project by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteProject
+      tags: [projects]
+      summary: Delete a project
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
+  /projects/{projectId}/generate:
+    post:
+      operationId: generateAd
+      tags: [projects]
+      summary: Generate AI ad concept for a project
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateAdBody"
+      responses:
+        "200":
+          description: Generated ad output
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdOutput"
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+
+  /user/profile:
+    get:
+      operationId: getUserProfile
+      tags: [users]
+      summary: Get current user profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          description: Unauthorized
+    patch:
+      operationId: updateUserProfile
+      tags: [users]
+      summary: Update current user profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserProfileBody"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+
+  /user/stats:
+    get:
+      operationId: getUserStats
+      tags: [users]
+      summary: Get current user's project stats
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectStats"
+        "401":
+          description: Unauthorized
+
+  /admin/stats:
+    get:
+      operationId: getAdminStats
+      tags: [admin]
+      summary: Get platform-wide stats (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Admin stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      tags: [admin]
+      summary: List all users (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: All users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminUser"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
+  /admin/users/{userId}:
+    delete:
+      operationId: deleteAdminUser
+      tags: [admin]
+      summary: Delete a user and all their data (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+
+  /admin/projects:
+    get:
+      operationId: listAdminProjects
+      tags: [admin]
+      summary: List all projects (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: All projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Project"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
+  /admin/projects/{projectId}:
+    delete:
+      operationId: deleteAdminProject
+      tags: [admin]
+      summary: Delete any project (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    Project:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        businessName:
+          type: string
+        businessType:
+          type: string
+        city:
+          type: string
+        serviceOffered:
+          type: string
+        targetCustomer:
+          type: string
+        adTone:
+          type: string
+        callToAction:
+          type: string
+        generatedOutput:
+          type: ["object", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - userId
+        - businessName
+        - businessType
+        - city
+        - serviceOffered
+        - targetCustomer
+        - adTone
+        - callToAction
+        - generatedOutput
+        - createdAt
+        - updatedAt
+
+    CreateProjectBody:
+      type: object
+      properties:
+        businessName:
+          type: string
+        businessType:
+          type: string
+        city:
+          type: string
+        serviceOffered:
+          type: string
+        targetCustomer:
+          type: string
+        adTone:
+          type: string
+        callToAction:
+          type: string
+        generatedOutput:
+          type: ["object", "null"]
+      required:
+        - businessName
+        - businessType
+        - city
+        - serviceOffered
+        - targetCustomer
+        - adTone
+        - callToAction
+
+    GenerateAdBody:
+      type: object
+      properties:
+        businessName:
+          type: string
+        businessType:
+          type: string
+        city:
+          type: string
+        serviceOffered:
+          type: string
+        targetCustomer:
+          type: string
+        adTone:
+          type: string
+        callToAction:
+          type: string
+      required:
+        - businessName
+        - businessType
+        - city
+        - serviceOffered
+        - targetCustomer
+        - adTone
+        - callToAction
+
+    AdOutput:
+      type: object
+      properties:
+        headline:
+          type: string
+        voiceoverScript:
+          type: string
+        scenes:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdScene"
+        finalCallToAction:
+          type: string
+        durationSeconds:
+          type: integer
+      required:
+        - headline
+        - voiceoverScript
+        - scenes
+        - finalCallToAction
+        - durationSeconds
+
+    AdScene:
+      type: object
+      properties:
+        sceneNumber:
+          type: integer
+        description:
+          type: string
+        onScreenText:
+          type: string
+        durationSeconds:
+          type: integer
+      required:
+        - sceneNumber
+        - description
+        - onScreenText
+        - durationSeconds
+
+    ProjectStats:
+      type: object
+      properties:
+        totalProjects:
+          type: integer
+        thisMonth:
+          type: integer
+        businessTypes:
+          type: array
+          items:
+            type: string
+      required:
+        - totalProjects
+        - thisMonth
+        - businessTypes
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        clerkUserId:
+          type: string
+        plan:
+          type: string
+        role:
+          type: string
+        projectsCount:
+          type: integer
+        createdAt:
+          type: string
+      required:
+        - id
+        - clerkUserId
+        - plan
+        - role
+        - projectsCount
+        - createdAt
+
+    UpdateUserProfileBody:
+      type: object
+      properties:
+        plan:
+          type: string
+
+    AdminStats:
+      type: object
+      properties:
+        totalUsers:
+          type: integer
+        totalProjects:
+          type: integer
+        projectsThisMonth:
+          type: integer
+        projectsToday:
+          type: integer
+        freeUsers:
+          type: integer
+        proUsers:
+          type: integer
+        topBusinessTypes:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              count:
+                type: integer
+            required:
+              - type
+              - count
+      required:
+        - totalUsers
+        - totalProjects
+        - projectsThisMonth
+        - projectsToday
+        - freeUsers
+        - proUsers
+        - topBusinessTypes
+
+    AdminUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        clerkUserId:
+          type: string
+        email:
+          type: string
+        plan:
+          type: string
+        role:
+          type: string
+        projectsCount:
+          type: integer
+        createdAt:
+          type: string
+      required:
+        - id
+        - clerkUserId
+        - email
+        - plan
+        - role
+        - projectsCount
+        - createdAt

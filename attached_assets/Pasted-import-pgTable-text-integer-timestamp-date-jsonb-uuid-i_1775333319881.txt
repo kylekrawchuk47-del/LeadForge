@@ -1,0 +1,125 @@
+import {
+  pgTable,
+  text,
+  integer,
+  timestamp,
+  date,
+  jsonb,
+  uuid,
+  index,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+
+// Adjust this import to your real users / businesses / campaigns tables
+import { users } from "./users";
+import { businessProfiles } from "./businessProfiles";
+import { campaigns } from "./campaigns";
+
+export const analyticsEvents = pgTable(
+  "analytics_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    businessProfileId: uuid("business_profile_id").references(() => businessProfiles.id, {
+      onDelete: "set null",
+    }),
+    eventName: text("event_name").notNull(),
+    eventType: text("event_type").notNull(), // "internal" | "business"
+    source: text("source"), // web, app, landing_page, email, etc.
+    properties: jsonb("properties").$type<Record<string, unknown>>().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    eventNameIdx: index("analytics_events_event_name_idx").on(table.eventName),
+    userIdx: index("analytics_events_user_idx").on(table.userId),
+    businessIdx: index("analytics_events_business_idx").on(table.businessProfileId),
+    createdAtIdx: index("analytics_events_created_at_idx").on(table.createdAt),
+  })
+);
+
+export const businessAnalyticsDaily = pgTable(
+  "business_analytics_daily",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    businessProfileId: uuid("business_profile_id")
+      .notNull()
+      .references(() => businessProfiles.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+
+    landingPageViews: integer("landing_page_views").default(0).notNull(),
+    formStarts: integer("form_starts").default(0).notNull(),
+    formSubmissions: integer("form_submissions").default(0).notNull(),
+    leadsCaptured: integer("leads_captured").default(0).notNull(),
+
+    emailsSent: integer("emails_sent").default(0).notNull(),
+    emailOpens: integer("email_opens").default(0).notNull(),
+    emailClicks: integer("email_clicks").default(0).notNull(),
+    unsubscribes: integer("unsubscribes").default(0).notNull(),
+
+    facebookLeads: integer("facebook_leads").default(0).notNull(),
+    instagramLeads: integer("instagram_leads").default(0).notNull(),
+    googleLeads: integer("google_leads").default(0).notNull(),
+    emailLeads: integer("email_leads").default(0).notNull(),
+    directLeads: integer("direct_leads").default(0).notNull(),
+    referralLeads: integer("referral_leads").default(0).notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => ({
+    businessDayUnique: uniqueIndex("business_analytics_daily_business_day_uidx").on(
+      table.businessProfileId,
+      table.day
+    ),
+    businessDayIdx: index("business_analytics_daily_business_day_idx").on(
+      table.businessProfileId,
+      table.day
+    ),
+  })
+);
+
+export const campaignAnalyticsDaily = pgTable(
+  "campaign_analytics_daily",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    campaignId: uuid("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    businessProfileId: uuid("business_profile_id")
+      .notNull()
+      .references(() => businessProfiles.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+
+    visits: integer("visits").default(0).notNull(),
+    leads: integer("leads").default(0).notNull(),
+
+    emailSent: integer("email_sent").default(0).notNull(),
+    emailOpened: integer("email_opened").default(0).notNull(),
+    emailClicked: integer("email_clicked").default(0).notNull(),
+
+    sourceFacebook: integer("source_facebook").default(0).notNull(),
+    sourceInstagram: integer("source_instagram").default(0).notNull(),
+    sourceGoogle: integer("source_google").default(0).notNull(),
+    sourceEmail: integer("source_email").default(0).notNull(),
+    sourceDirect: integer("source_direct").default(0).notNull(),
+    sourceReferral: integer("source_referral").default(0).notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => ({
+    campaignDayUnique: uniqueIndex("campaign_analytics_daily_campaign_day_uidx").on(
+      table.campaignId,
+      table.day
+    ),
+    campaignDayIdx: index("campaign_analytics_daily_campaign_day_idx").on(table.campaignId, table.day),
+    businessIdx: index("campaign_analytics_daily_business_idx").on(table.businessProfileId),
+  })
+);

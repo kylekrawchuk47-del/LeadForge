@@ -1,0 +1,398 @@
+Build a new in-app feature called **"AI Ad Creator"**.
+
+GOAL:
+Create a clean, premium, and simple feature that allows small businesses to generate high-converting flyers, posters, and social media ads using AI.
+
+This is NOT a design tool like Canva.
+This should feel like a guided “get customers fast” system.
+
+---
+
+## CORE USER FLOW:
+
+1. User selects ad goal
+2. User fills out a short form
+3. App generates ad copy using AI
+4. App generates 4 ad design variations using AI images
+5. User refines one design with simple buttons
+6. User downloads or exports the final design
+
+Keep everything extremely simple, clean, and premium.
+
+---
+
+## PAGES TO BUILD:
+
+1. AD CREATOR HOME
+
+* Header: "Create an Ad That Gets You Leads"
+* Subtext: "Flyers, posters, and social promos in minutes"
+* Card options:
+
+  * Promote a Service
+  * Seasonal Offer
+  * Before & After Ad
+  * Local Awareness
+  * Hiring
+* Section: Recent Designs
+* Layout: modern card grid, lots of spacing, premium feel
+
+---
+
+2. QUICK INPUT FORM
+   Fields:
+
+* Business Name
+* Service
+* Location (optional)
+* Offer (optional)
+* Phone / CTA
+* Tone selector:
+
+  * Clean Professional
+  * Bold
+  * Premium
+  * Friendly
+* Format selector:
+
+  * Square Post
+  * Story (9:16)
+  * Flyer
+  * Poster
+
+Buttons:
+
+* Back
+* Generate Ads
+
+IMPORTANT:
+
+* Keep this form minimal
+* No advanced settings
+* One main CTA button
+
+---
+
+3. LOADING SCREEN
+   Show progress steps:
+
+* "Writing your ad copy..."
+* "Designing your ad concepts..."
+* "Creating premium layouts..."
+
+Add smooth animation and premium feel.
+
+---
+
+4. RESULTS GRID
+   Display 4 generated ads:
+
+Each card includes:
+
+* Image preview
+* Label:
+
+  * Clean Professional
+  * Bold Offer
+  * Luxury Premium
+  * Social Ready
+* Buttons:
+
+  * Use This
+  * Refine
+  * Regenerate
+
+Top actions:
+
+* Edit Inputs
+* Download
+* Create More
+
+---
+
+5. REFINE PANEL
+   Simple one-tap actions only:
+
+* More Premium
+* More Bold
+* Simplify
+* Improve Headline
+* Add Urgency
+* Change Colors
+* Resize
+* Add My Photo
+
+No complex controls.
+
+---
+
+6. EXPORT SCREEN
+   Options:
+
+* Download PNG
+* Download Print Version
+* Create Instagram Version
+* Create Facebook Version
+* Duplicate and Edit
+
+---
+
+## BACKEND LOGIC:
+
+STAGE 1 — GENERATE AD COPY
+
+POST /api/ad-copy
+
+Input:
+{
+businessName,
+service,
+location,
+offer,
+cta,
+tone,
+goal
+}
+
+Use AI to generate:
+
+Return JSON:
+{
+"headline": "",
+"subheadline": "",
+"offer_line": "",
+"cta": "",
+"supporting_bullets": ["", "", ""],
+"design_direction": "",
+"image_direction": ""
+}
+
+---
+
+STAGE 2 — BUILD IMAGE PROMPTS
+
+Convert the copy into a structured image prompt.
+
+Base template:
+
+"Create a premium advertising flyer/poster for a local business.
+
+Business type: {{industry}}
+Service: {{service}}
+Business name: {{businessName}}
+
+Headline: {{headline}}
+Subheadline: {{subheadline}}
+Offer: {{offerLine}}
+CTA: {{cta}}
+
+Include supporting text:
+{{bullet1}}, {{bullet2}}, {{bullet3}}
+
+Design requirements:
+
+* clean premium layout
+* modern ad design
+* strong hierarchy
+* minimal clutter
+* high readability
+* professional marketing look
+* no mockups
+* no distorted text
+* no messy layouts
+* flat finished graphic
+
+Format: {{format}}"
+
+---
+
+STAGE 3 — GENERATE 4 VARIATIONS
+
+Create 4 styles:
+
+1. Clean Professional
+   "clean, minimal, trustworthy, premium service ad"
+
+2. Bold Offer
+   "high contrast, strong CTA, bold headline, still professional"
+
+3. Luxury Premium
+   "elegant, refined, high-end brand look"
+
+4. Social Ready
+   "modern, eye-catching, mobile optimized"
+
+Call image generation 4 times.
+
+---
+
+STAGE 4 — REFINE
+
+POST /api/ad-refine
+
+Input:
+{
+generationId,
+action
+}
+
+Actions:
+
+* more-premium
+* more-bold
+* simplify
+* improve-headline
+* add-urgency
+* change-colors
+* resize
+
+Modify prompt and regenerate image.
+
+---
+
+## DATABASE STRUCTURE:
+
+TABLE: ad_projects
+
+* id
+* user_id
+* business_name
+* service
+* location
+* offer
+* cta
+* tone
+* format
+* goal
+* created_at
+
+TABLE: ad_copies
+
+* id
+* project_id
+* headline
+* subheadline
+* offer_line
+* cta
+* supporting_bullets_json
+* design_direction
+* image_direction
+
+TABLE: ad_generations
+
+* id
+* project_id
+* variation_type
+* prompt_text
+* image_url
+* status
+* created_at
+
+TABLE: ad_refinements
+
+* id
+* generation_id
+* action_type
+* new_prompt_text
+* new_image_url
+* created_at
+
+---
+
+## AI PROMPTS:
+
+SYSTEM PROMPT:
+
+"You are an elite direct-response ad copywriter for local businesses.
+
+Write clean, high-converting flyer/poster copy.
+
+Rules:
+
+* clear and simple
+* premium tone
+* no fluff
+* strong CTA
+* visually clean
+* do not explain
+
+Return JSON only."
+
+---
+
+USER PROMPT TEMPLATE:
+
+"Create flyer ad copy.
+
+Business: {{businessName}}
+Service: {{service}}
+Location: {{location}}
+Offer: {{offer}}
+CTA: {{cta}}
+Tone: {{tone}}
+Goal: {{goal}}"
+
+---
+
+REFINE PROMPT EXAMPLE:
+
+"Make this ad more premium, improve spacing, typography, and clarity while keeping the same message."
+
+---
+
+## FRONTEND COMPONENTS:
+
+Create:
+
+* AdCreatorHome.tsx
+* AdInputForm.tsx
+* AdLoadingState.tsx
+* AdResultsGrid.tsx
+* AdVariantCard.tsx
+* AdRefinePanel.tsx
+* AdExportModal.tsx
+
+STATE MODEL:
+
+type AdInput = {
+businessName: string
+service: string
+location: string
+offer: string
+cta: string
+tone: string
+format: string
+goal: string
+}
+
+---
+
+## DESIGN REQUIREMENTS:
+
+* Very clean UI
+* Premium SaaS look
+* Lots of white space
+* Minimal text
+* No clutter
+* Mobile responsive
+* Smooth transitions
+* Modern cards
+* Strong typography hierarchy
+
+---
+
+## IMPORTANT PRODUCT RULES:
+
+* Do NOT build a complex editor
+* Do NOT expose prompt inputs to users
+* Always generate 4 options
+* Always keep it simple
+* Focus on speed and results
+* Make users feel like they created a high-end ad instantly
+
+---
+
+FINAL GOAL:
+This feature should feel like the fastest and easiest way for a business to create ads that get them leads.
+
+---

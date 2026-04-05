@@ -1,0 +1,105 @@
+Update the app name from "LocalAd AI" to "LeadForge".
+
+This app is now called LeadForge and should feel like a premium, powerful SaaS platform for local business growth and lead generation.
+
+BRAND IDENTITY:
+LeadForge should feel:
+- Strong
+- Professional
+- High-end
+- Trustworthy
+- Results-driven
+- Built for serious business owners
+
+COLOR SYSTEM:
+Use a navy blue-based color palette with clean complementary tones.
+
+Primary color:
+- Deep Navy Blue (#0B1F3A or similar)
+
+Secondary colors:
+- Slightly lighter navy / blue tones for gradients and accents
+- Soft gray backgrounds (#F5F7FA or similar)
+- White for main content areas
+
+Accent color (for CTAs and highlights):
+- Use a subtle but strong contrasting color such as:
+  - Electric blue OR
+  - Muted teal OR
+  - Soft gold (very minimal use)
+
+DO NOT use:
+- Bright random colors
+- Neon tones
+- Too many colors
+- Anything that looks cheap or playful
+
+DESIGN DIRECTION:
+- Premium SaaS look (like Stripe or modern fintech tools)
+- Clean layout with strong spacing
+- Elegant cards with soft shadows
+- Smooth hover effects
+- Rounded corners
+- Clear visual hierarchy
+- Professional typography
+- Minimal but powerful UI
+
+HOMEPAGE BRAND UPDATE:
+Update headline to:
+"Forge better ads. Capture more leads. Grow your business."
+
+Update subheadline to:
+"LeadForge helps local service businesses generate ads, create high-converting landing pages, and capture real customer leads in minutes."
+
+Update CTA buttons:
+- Start Free
+- See How It Works
+
+LOGO DIRECTION (placeholder):
+Create a simple text-based logo:
+- "LeadForge"
+- Bold, modern font
+- Navy-based color
+- Clean and minimal
+
+OPTIONAL ICON IDEA:
+- Subtle flame, spark, or forge-inspired symbol
+- Keep it minimal and professional (not cartoonish)
+
+DASHBOARD DESIGN UPDATE:
+Refine dashboard to match the LeadForge brand:
+- Darker navy sidebar
+- Clean white main content area
+- Strong card layout
+- Clear stats
+- Premium feel
+
+SIDEBAR STYLE:
+- Navy background
+- White or light text
+- Subtle hover highlights
+- Clean icons
+
+BUTTON STYLE:
+- Primary buttons in navy or accent color
+- Rounded corners
+- Strong but clean hover effects
+
+FORMS:
+- Clean inputs with soft borders
+- Good spacing
+- Easy to scan and fill out
+
+OVERALL EXPERIENCE:
+The entire app should feel like a high-end, paid product that helps businesses grow and make money.
+
+It should NOT feel:
+- cheap
+- cluttered
+- overly colorful
+- beginner-level
+
+It should feel like:
+- a serious growth tool
+- something businesses trust
+- something worth paying for monthly
